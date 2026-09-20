@@ -23,10 +23,16 @@
       <div></div>
 
       <div class="footer">
-        <p class="hint">
-          Тяните от своего узла к соседнему: всё, <kbd>Shift</kbd> — половина,
-          <kbd>Alt</kbd> — четверть.
-        </p>
+        <div>
+          <p class="hint">
+            Тяните от своего узла к соседнему: всё, <kbd>Shift</kbd> — половина,
+            <kbd>Alt</kbd> — четверть.
+          </p>
+          <p class="hint">
+            Правой кнопкой — провод снабжения между своими узлами: заполнившийся
+            узел сам шлёт по нему половину.
+          </p>
+        </div>
         <div class="controls">
           <span data-seed></span>
           <button type="button" data-help>Правила</button>
@@ -50,6 +56,10 @@
         </div>
       </form>
     </dialog>
+
+    <button class="wire-cut" type="button" data-cut-wire aria-label="Убрать провод" hidden>
+      ×
+    </button>
 
     <div class="upgrade" hidden>
       <button type="button" data-upgrade aria-label="Поднять уровень узла">+</button>

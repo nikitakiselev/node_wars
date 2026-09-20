@@ -58,6 +58,11 @@ export interface GameState {
   edges: Edge[];
   /** adjacency[nodeId] lists the ids reachable in one hop. */
   adjacency: number[][];
+  /**
+   * wires[nodeId] is the neighbour that node automatically feeds once it
+   * fills up, if any. At most one per node.
+   */
+  wires: (number | undefined)[];
   squads: Squad[];
   /** Seconds of simulated time since the match began. */
   time: number;

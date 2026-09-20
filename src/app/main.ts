@@ -3,9 +3,11 @@ import type { Difficulty } from '../ai/ai';
 import { formatPoints } from '../core/format';
 import { defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { MAX_LEVEL, upgradeCost } from '../core/levels';
+import { wireMidpoint } from '../core/geometry';
 import { isEliminated } from '../core/simulation';
 import type { GameNode } from '../core/state';
 import { upgradeNode } from '../core/upgrade';
+import { clearWire } from '../core/wires';
 import { standingsFor } from '../core/standings';
 import { PointerControls } from '../input/pointer';
 import { GameRenderer } from '../render/renderer';
@@ -55,7 +57,17 @@ const hud = {
   upgradeButton: document.querySelector<HTMLButtonElement>('[data-upgrade]')!,
   upgradeNote: document.querySelector<HTMLElement>('[data-upgrade-note]')!,
   pause: document.querySelector<HTMLElement>('.pause')!,
+  cutWire: document.querySelector<HTMLButtonElement>('[data-cut-wire]')!,
 };
+
+hud.cutWire.addEventListener('click', () => {
+  const wire = controls.hoveredWire;
+  if (wire === null) return;
+  clearWire(match.state, HUMAN, wire);
+  controls.clearSelection();
+  paintOverlays();
+  app.render();
+});
 
 /**
  * The board runs only when nothing is covering it.
@@ -135,7 +147,7 @@ const controls = new PointerControls(
   HUMAN,
   () => match.state,
   () => {
-    paintUpgradeControl();
+    paintOverlays();
     renderer.draw(match.state, match.alpha, STEP_SECONDS, controls.hint);
     app.render();
   },
@@ -236,7 +248,45 @@ function showMatch(next: Match): void {
   controls.clearSelection();
   renderer.draw(match.state, 0, STEP_SECONDS, controls.hint);
   paintHud();
+  paintOverlays();
   app.render();
+}
+
+/** Keeps the controls that float over the board where they belong. */
+function paintOverlays(): void {
+  paintUpgradeControl();
+  paintWireControl();
+}
+
+/**
+ * Parks the × on the wire the cursor is resting on.
+ *
+ * Right-clicking the node takes its wire down too, but nobody discovers that
+ * on their own; a button on the wire itself is the way it gets found.
+ */
+function paintWireControl(): void {
+  const wire = controls.hoveredWire;
+  const middle = wire === null ? null : wireMidpoint(match.state, wire);
+
+  if (!middle) {
+    hud.cutWire.hidden = true;
+    return;
+  }
+
+  const at = renderer.toScreen(middle.x, middle.y);
+  hud.cutWire.hidden = false;
+  hud.cutWire.style.left = `${at.x}px`;
+  hud.cutWire.style.top = `${at.y}px`;
+
+  // The button belongs to the wire, so it wears the wire's colour.
+  const owner = match.state.nodes[wire!]?.owner ?? HUMAN;
+  const colour = cssColour(factionOf(owner).glow);
+  hud.cutWire.style.borderColor = colour;
+  hud.cutWire.style.color = colour;
+}
+
+function cssColour(value: number): string {
+  return `#${value.toString(16).padStart(6, '0')}`;
 }
 
 /**
@@ -303,7 +353,7 @@ function buildScoreboard(playerCount: number): void {
 
   for (let player = 0; player < playerCount; player++) {
     const faction = factionOf(player);
-    const colour = `#${faction.glow.toString(16).padStart(6, '0')}`;
+    const colour = cssColour(faction.glow);
 
     const bar = document.createElement('div');
     bar.className = 'tide__seat';
@@ -328,7 +378,7 @@ app.ticker.add((ticker) => {
   match.advance(Math.min(ticker.deltaMS / 1000, 0.25));
   renderer.draw(match.state, match.alpha, STEP_SECONDS, controls.hint);
   paintHud();
-  paintUpgradeControl();
+  paintOverlays();
 });
 
 function paintHud(): void {

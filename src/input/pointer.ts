@@ -1,7 +1,8 @@
-import { nodeAtPoint } from '../core/geometry';
-import { fractionFor } from './fractions';
+import { nodeAtPoint, wireAtPoint } from '../core/geometry';
 import { sendSquad } from '../core/orders';
 import type { GameState, OwnerId } from '../core/state';
+import { clearWire, setWire } from '../core/wires';
+import { fractionFor } from './fractions';
 import type { DragHint } from '../render/renderer';
 
 interface Surface {
@@ -19,20 +20,26 @@ interface Surface {
 /** Pointer travel, in world units, still counted as a click rather than a drag. */
 const CLICK_SLOP = 8;
 
+const RIGHT_BUTTON = 2;
+
 export class PointerControls {
   private from: number | null = null;
   private cursor: { x: number; y: number } | null = null;
   private targets = new Set<number>();
   private pressedAt: { x: number; y: number } | null = null;
   private chosen: number | null = null;
+  /** Set while the right button is drawing a supply wire. */
+  private wiring = false;
+  /** The wire the cursor is resting on, identified by its source node. */
+  private hovered: number | null = null;
 
   constructor(
     private readonly surface: Surface,
     private readonly player: OwnerId,
     private readonly getState: () => GameState,
-    /** Called when the picked-out node changes, so controls can follow at
-     * once rather than on the next frame. */
-    private readonly onSelectionChange: () => void = () => {},
+    /** Called when the selection or the hovered wire changes, so controls can
+     * follow at once rather than on the next frame. */
+    private readonly onUiChange: () => void = () => {},
   ) {
     const canvas = surface.canvas;
     canvas.addEventListener('pointerdown', this.onDown);
@@ -48,6 +55,7 @@ export class PointerControls {
       cursor: this.cursor,
       targets: this.targets,
       selected: this.chosen,
+      wiring: this.wiring,
     };
   }
 
@@ -56,15 +64,21 @@ export class PointerControls {
     return this.chosen;
   }
 
+  /** The wire under the cursor, by source node, or null. */
+  get hoveredWire(): number | null {
+    return this.hovered;
+  }
+
   /** Drops the selection, for when the node is lost or the board is replaced. */
   clearSelection(): void {
+    this.hovered = null;
     this.select(null);
   }
 
   private select(nodeId: number | null): void {
     if (this.chosen === nodeId) return;
     this.chosen = nodeId;
-    this.onSelectionChange();
+    this.onUiChange();
   }
 
   destroy(): void {
@@ -91,20 +105,36 @@ export class PointerControls {
       return;
     }
 
+    // The right button lays supply wires, which run between your own nodes;
+    // the left one throws squads, which go at everyone else's.
+    this.wiring = event.button === RIGHT_BUTTON;
+    this.hovered = null;
     this.pressedAt = point;
     this.from = node.id;
     this.cursor = point;
     this.targets = new Set(
-      (state.adjacency[node.id] ?? []).filter(
-        (id) => state.nodes[id]?.owner !== this.player,
+      (state.adjacency[node.id] ?? []).filter((id) =>
+        this.wiring
+          ? state.nodes[id]?.owner === this.player
+          : state.nodes[id]?.owner !== this.player,
       ),
     );
     this.surface.canvas.setPointerCapture(event.pointerId);
   };
 
   private readonly onMove = (event: PointerEvent): void => {
-    if (this.from === null) return;
-    this.cursor = this.pointAt(event);
+    const point = this.pointAt(event);
+
+    if (this.from !== null) {
+      this.cursor = point;
+      return;
+    }
+
+    // Resting on a wire brings up its controls; dragging is not the time.
+    const wire = wireAtPoint(this.getState(), point.x, point.y);
+    if (wire === this.hovered) return;
+    this.hovered = wire;
+    this.onUiChange();
   };
 
   private readonly onUp = (event: PointerEvent): void => {
@@ -119,7 +149,19 @@ export class PointerControls {
     const travelled = this.pressedAt
       ? Math.hypot(point.x - this.pressedAt.x, point.y - this.pressedAt.y)
       : Infinity;
-    if (travelled <= CLICK_SLOP && target?.id === this.from) {
+    const isClick = travelled <= CLICK_SLOP && target?.id === this.from;
+
+    if (this.wiring) {
+      // A right-click in place takes down the wire the node already has.
+      if (isClick) clearWire(state, this.player, this.from);
+      else if (target && target.id !== this.from) {
+        setWire(state, this.player, this.from, target.id);
+      }
+      this.clear();
+      return;
+    }
+
+    if (isClick) {
       this.select(this.chosen === this.from ? null : this.from);
       this.clear();
       return;
@@ -136,6 +178,7 @@ export class PointerControls {
   private readonly onCancel = (): void => this.clear();
 
   private clear(): void {
+    this.wiring = false;
     this.from = null;
     this.cursor = null;
     this.pressedAt = null;

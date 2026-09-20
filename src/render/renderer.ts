@@ -20,9 +20,17 @@ export interface DragHint {
   targets: ReadonlySet<number>;
   /** The node the player has picked out to work on, if any. */
   selected: number | null;
+  /** True while the drag in progress is laying a supply wire. */
+  wiring: boolean;
 }
 
-const EMPTY_DRAG: DragHint = { from: null, cursor: null, targets: new Set(), selected: null };
+const EMPTY_DRAG: DragHint = {
+  from: null,
+  cursor: null,
+  targets: new Set(),
+  selected: null,
+  wiring: false,
+};
 
 interface NodeView {
   glow: Sprite;
@@ -68,6 +76,7 @@ const INSETS = { top: 62, bottom: 52, left: 20, right: 20 } as const;
 export class GameRenderer {
   private readonly world = new Container();
   private readonly edgeLayer = new Graphics();
+  private readonly wireLayer = new Graphics();
   private readonly liveEdgeLayer = new Graphics();
   private readonly glowLayer = new Container();
   private readonly discLayer = new Container();
@@ -99,6 +108,7 @@ export class GameRenderer {
 
     this.world.addChild(
       this.edgeLayer,
+      this.wireLayer,
       this.liveEdgeLayer,
       this.glowLayer,
       this.discLayer,
@@ -243,6 +253,7 @@ export class GameRenderer {
     this.drawNodes(state, time, drag.selected);
     this.drawRings(state);
     this.drawStreams(state, alpha, stepSeconds, time);
+    this.drawWires(state, time);
     this.drawLiveEdges(state, drag);
     this.drawBeacon(state, time);
     this.advanceFlashes(state, stepSeconds * alpha);
@@ -474,6 +485,50 @@ export class GameRenderer {
     return particle;
   }
 
+  /**
+   * Supply wires, as dashes crawling towards the node they feed.
+   *
+   * The direction has to be visible at a glance — a wire that looks the same
+   * both ways is worse than no line at all — so the dashes march rather than
+   * sit still.
+   */
+  private drawWires(state: GameState, time: number): void {
+    this.wireLayer.clear();
+
+    state.nodes.forEach((source, fromId) => {
+      const toId = state.wires[fromId];
+      if (toId === undefined) return;
+      const target = state.nodes[toId];
+      if (!target) return;
+
+      const colour = factionOf(source.owner).glow;
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const length = Math.hypot(dx, dy);
+      if (length < 1) return;
+
+      const ux = dx / length;
+      const uy = dy / length;
+      // Start and finish clear of both circles so the dashes read as a line
+      // between nodes rather than something growing out of them.
+      const start = source.radius + 4;
+      const finish = length - target.radius - 4;
+      const stride = DASH_LENGTH + DASH_GAP;
+      const phase = (time * DASH_SPEED) % stride;
+
+      for (let at = start + phase - stride; at < finish; at += stride) {
+        const head = Math.max(start, at);
+        const tail = Math.min(finish, at + DASH_LENGTH);
+        if (tail <= head) continue;
+
+        this.wireLayer
+          .moveTo(source.x + ux * head, source.y + uy * head)
+          .lineTo(source.x + ux * tail, source.y + uy * tail)
+          .stroke({ width: 2.5, color: colour, alpha: 0.75 });
+      }
+    });
+  }
+
   private drawLiveEdges(state: GameState, drag: DragHint): void {
     this.liveEdgeLayer.clear();
 
@@ -494,7 +549,11 @@ export class GameRenderer {
           this.liveEdgeLayer
             .moveTo(source.x, source.y)
             .lineTo(drag.cursor.x, drag.cursor.y)
-            .stroke({ width: 2, color: faction.glow, alpha: 0.55 });
+            .stroke({
+              width: drag.wiring ? 3 : 2,
+              color: faction.glow,
+              alpha: drag.wiring ? 0.8 : 0.55,
+            });
         }
       }
     }
@@ -577,6 +636,11 @@ function hexagonPath(graphics: Graphics, x: number, y: number, radius: number): 
   }
   graphics.closePath();
 }
+
+const DASH_LENGTH = 7;
+const DASH_GAP = 7;
+/** World units a dash travels per second. */
+const DASH_SPEED = 26;
 
 /** How long the opening beacon stays up, in simulated seconds. */
 const BEACON_SECONDS = 7;

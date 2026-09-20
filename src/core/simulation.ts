@@ -1,5 +1,6 @@
 import { resolveArrival } from './combat';
 import { applyGrowth } from './growth';
+import { flushWires } from './wires';
 import { NEUTRAL, type GameState, type OwnerId } from './state';
 
 /**
@@ -13,6 +14,7 @@ export function step(state: GameState, dt: number): void {
 
   state.time += dt;
   applyGrowth(state.nodes, dt);
+  flushWires(state);
   advanceSquads(state, dt);
   state.winner = findWinner(state);
 }

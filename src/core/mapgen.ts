@@ -168,7 +168,16 @@ function assemble(nodes: GameNode[], points: Point[], graphEdges: GraphEdge[]): 
     return { a, b, length: Math.hypot(pb.x - pa.x, pb.y - pa.y) };
   });
 
-  return { nodes, edges, adjacency, squads: [], time: 0, winner: null, nextSquadId: 1 };
+  return {
+    nodes,
+    edges,
+    adjacency,
+    wires: nodes.map(() => undefined),
+    squads: [],
+    time: 0,
+    winner: null,
+    nextSquadId: 1,
+  };
 }
 
 /**

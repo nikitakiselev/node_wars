@@ -112,6 +112,21 @@ inside 20 minutes, because both reinforce continuously. The tests assert what
 is measured — the board is always fully claimed, and an unfinished match is
 lopsided rather than frozen — rather than an ideal.
 
+## Supply wires
+
+`core/wires.ts`. A player can point one of their nodes at an adjacent node
+they also own; once the source fills up it ships half its garrison down the
+wire. `flushWires` runs inside `step`, after growth, and drops any wire whose
+ends are no longer both held by one player.
+
+Wires carry but never conquer — the target must already be yours. That is the
+guardrail that keeps the game a game: with auto-attack the whole match would
+play itself from the first minute. Bots do not use wires; they have the same
+logistics built in, so wires only close the clicking gap.
+
+Growth clamps at capacity, so there is never a literal overflow to forward —
+"send on overflow" is realised as "at capacity, send half".
+
 ## Winning and losing
 
 A match ends when one player is left alive; alive means holding a node **or**

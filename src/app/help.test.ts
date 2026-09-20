@@ -9,13 +9,13 @@ describe('the rules panel', () => {
   test('covers what a new player has to be told', () => {
     const titles = sections.map((s) => s.title).join(' ').toLowerCase();
 
-    for (const topic of ['цель', 'атак', 'уровн', 'тип', 'захват', 'пауз']) {
+    for (const topic of ['цель', 'атак', 'уровн', 'тип', 'провод', 'захват', 'пауз']) {
       expect(titles, topic).toContain(topic);
     }
   });
 
   test('stays short enough to read at a glance', () => {
-    expect(sections.length).toBeLessThanOrEqual(7);
+    expect(sections.length).toBeLessThanOrEqual(8);
 
     for (const section of sections) {
       expect(section.lines.length, section.title).toBeLessThanOrEqual(4);

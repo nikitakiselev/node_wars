@@ -32,5 +32,14 @@ export function makeState(nodes: GameNode[], edgePairs: [number, number][]): Gam
     return { a, b, length: Math.hypot(nb.x - na.x, nb.y - na.y) };
   });
 
-  return { nodes, edges, adjacency, squads: [], time: 0, winner: null, nextSquadId: 1 };
+  return {
+    nodes,
+    edges,
+    adjacency,
+    wires: nodes.map(() => undefined),
+    squads: [],
+    time: 0,
+    winner: null,
+    nextSquadId: 1,
+  };
 }

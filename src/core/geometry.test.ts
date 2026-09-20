@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { makeNode, makeState } from './fixtures';
-import { nodeAtPoint, squadPosition } from './geometry';
+import { setWire } from './wires';
+import { nodeAtPoint, squadPosition, wireAtPoint, wireMidpoint } from './geometry';
 
 describe('nodeAtPoint', () => {
   const state = makeState(
@@ -51,5 +52,65 @@ describe('squadPosition', () => {
 
   test('extrapolates past the target when asked, for render smoothing', () => {
     expect(squadPosition(state, { ...squad, progress: 1.1 }).x).toBeCloseTo(110);
+  });
+});
+
+describe('wireAtPoint', () => {
+  function wired() {
+    const state = makeState(
+      [
+        makeNode(0, { x: 0, y: 0, owner: 0, radius: 20 }),
+        makeNode(1, { x: 200, y: 0, owner: 0, radius: 20 }),
+        makeNode(2, { x: 0, y: 400, owner: 0, radius: 20 }),
+      ],
+      [
+        [0, 1],
+        [0, 2],
+      ],
+    );
+    setWire(state, 0, 0, 1);
+    return state;
+  }
+
+  test('finds the wire the cursor is resting on', () => {
+    expect(wireAtPoint(wired(), 100, 3)).toBe(0);
+  });
+
+  test('ignores a cursor well clear of the line', () => {
+    expect(wireAtPoint(wired(), 100, 60)).toBeNull();
+  });
+
+  test('ignores a cursor past either end of the line', () => {
+    expect(wireAtPoint(wired(), -80, 0)).toBeNull();
+    expect(wireAtPoint(wired(), 280, 0)).toBeNull();
+  });
+
+  test('finds nothing where no wire has been laid', () => {
+    expect(wireAtPoint(wired(), 0, 200)).toBeNull();
+  });
+
+  test('picks the nearer wire when two run close together', () => {
+    const state = wired();
+    setWire(state, 0, 2, 0);
+
+    expect(wireAtPoint(state, 4, 300)).toBe(2);
+  });
+});
+
+describe('wireMidpoint', () => {
+  test('sits halfway along the wire', () => {
+    const state = makeState(
+      [makeNode(0, { x: 0, y: 0, owner: 0 }), makeNode(1, { x: 200, y: 100, owner: 0 })],
+      [[0, 1]],
+    );
+    setWire(state, 0, 0, 1);
+
+    expect(wireMidpoint(state, 0)).toEqual({ x: 100, y: 50 });
+  });
+
+  test('is nothing when the node has no wire', () => {
+    const state = makeState([makeNode(0, { owner: 0 })], []);
+
+    expect(wireMidpoint(state, 0)).toBeNull();
   });
 });
