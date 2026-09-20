@@ -18,6 +18,7 @@ import {
   defaultSettings,
   type MatchSettings,
 } from './match';
+import { readOptions } from './options';
 import { buildChoices, readChoice } from './settings-form';
 import './style.css';
 
@@ -80,12 +81,15 @@ function setPaused(next: boolean): void {
 
 document.querySelector('[data-resume]')!.addEventListener('click', () => setPaused(false));
 
-// Leaving the window pauses: a real-time game running on unwatched is just a
-// game being lost.
-window.addEventListener('blur', () => setPaused(true));
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) setPaused(true);
-});
+// Leaving the window pauses: a real-time game running unwatched is just a game
+// being lost. Automated runs want the opposite, hence ?autopause=off.
+const options = readOptions(window.location.search);
+if (options.autoPause) {
+  window.addEventListener('blur', () => setPaused(true));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) setPaused(true);
+  });
+}
 
 window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;

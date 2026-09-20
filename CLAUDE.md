@@ -121,6 +121,9 @@ tell a human they are out while bots fight on among themselves.
 - **Node rings are one `Graphics` per node**, redrawn only when a signature of
   owner and quantised fill changes. A single shared `Graphics` re-tessellates
   the whole board every frame and is most of what the game costs.
+- **`?autopause=off` keeps a match running in an unfocused window**, which is
+  what automated runs want; `readOptions` in `app/options.ts` parses it.
+  Escape still pauses by hand.
 - **One function owns the clock.** `updateRunning` in `main.ts` decides whether
   the ticker runs, because two separate things stop it — the setup dialog and
   the pause — and letting each call start/stop directly meant whoever spoke
