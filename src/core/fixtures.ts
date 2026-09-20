@@ -9,6 +9,7 @@ export function makeNode(id: number, overrides: Partial<GameNode> = {}): GameNod
     y: 0,
     radius: 20,
     capacity: 50,
+    kind: 'base',
     owner: NEUTRAL,
     points: 10,
     ...overrides,

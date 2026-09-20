@@ -3,7 +3,17 @@ import { NEUTRAL, type GameNode, type Squad } from './state';
 import { resolveArrival } from './combat';
 
 function node(overrides: Partial<GameNode> = {}): GameNode {
-  return { id: 0, x: 0, y: 0, radius: 20, capacity: 50, owner: 0, points: 10, ...overrides };
+  return {
+    id: 0,
+    x: 0,
+    y: 0,
+    radius: 20,
+    capacity: 50,
+    kind: 'base',
+    owner: 0,
+    points: 10,
+    ...overrides,
+  };
 }
 
 function squad(overrides: Partial<Squad> = {}): Squad {
@@ -53,6 +63,60 @@ describe('resolveArrival', () => {
 
     expect(target.owner).toBe(1);
     expect(target.points).toBe(0);
+  });
+
+  test('a fortress absorbs half of an attack', () => {
+    const target = node({ owner: 1, points: 20, kind: 'fortress' });
+
+    resolveArrival(target, squad({ owner: 0, amount: 30 }));
+
+    expect(target.owner).toBe(1);
+    expect(target.points).toBe(5);
+  });
+
+  test('taking a fortress costs double, and the surplus is what is left of the halved force', () => {
+    const target = node({ owner: 1, points: 10, kind: 'fortress' });
+
+    resolveArrival(target, squad({ owner: 0, amount: 40 }));
+
+    expect(target.owner).toBe(0);
+    expect(target.points).toBe(10);
+  });
+
+  test('an attack that would take a plain node bounces off a fortress', () => {
+    const plain = node({ owner: 1, points: 20, kind: 'base' });
+    const fortress = node({ owner: 1, points: 20, kind: 'fortress' });
+
+    resolveArrival(plain, squad({ owner: 0, amount: 25 }));
+    resolveArrival(fortress, squad({ owner: 0, amount: 25 }));
+
+    expect(plain.owner).toBe(0);
+    expect(fortress.owner).toBe(1);
+  });
+
+  test('a fortress defends just as well once you hold it', () => {
+    const mine = node({ owner: 0, points: 20, kind: 'fortress' });
+
+    resolveArrival(mine, squad({ owner: 1, amount: 30 }));
+
+    expect(mine.owner).toBe(0);
+    expect(mine.points).toBe(5);
+  });
+
+  test('reinforcing your own fortress is not halved', () => {
+    const mine = node({ owner: 0, points: 10, kind: 'fortress' });
+
+    resolveArrival(mine, squad({ owner: 0, amount: 12 }));
+
+    expect(mine.points).toBe(22);
+  });
+
+  test('a farm defends like any other node', () => {
+    const farm = node({ owner: 1, points: 20, kind: 'farm' });
+
+    resolveArrival(farm, squad({ owner: 0, amount: 8 }));
+
+    expect(farm.points).toBe(12);
   });
 
   test('a neutral node is captured the same way as an enemy node', () => {

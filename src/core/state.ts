@@ -4,8 +4,16 @@ export type OwnerId = number;
 /** Nobody owns this node; it never grows and defends with its starting points. */
 export const NEUTRAL: OwnerId = -1;
 
-/** The only node kind for now. New kinds change growth, not code shape. */
-export type NodeKind = 'base';
+/**
+ * What a node is, beyond its size.
+ *
+ * - `base` — an ordinary node.
+ * - `fortress` — halves incoming hostile force, so taking it costs double.
+ * - `farm` — grows twice as fast, but holds no more.
+ *
+ * Terrain, not allegiance: a kind works the same for whoever holds the node.
+ */
+export type NodeKind = 'base' | 'fortress' | 'farm';
 
 export interface GameNode {
   id: number;
@@ -16,6 +24,7 @@ export interface GameNode {
   radius: number;
   /** Points the node grows to on its own. Reinforcements may exceed it. */
   capacity: number;
+  kind: NodeKind;
   owner: OwnerId;
   points: number;
 }

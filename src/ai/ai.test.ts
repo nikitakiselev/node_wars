@@ -182,6 +182,96 @@ describe('createAi', () => {
     expect(state.squads).toHaveLength(1);
   });
 
+  test('values a farm above a plain node of the same size', () => {
+    const state = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER, points: 60 }),
+        makeNode(1, { owner: NEUTRAL, points: 5, capacity: 50, kind: 'base' }),
+        makeNode(2, { owner: NEUTRAL, points: 5, capacity: 50, kind: 'farm' }),
+      ],
+      [
+        [0, 1],
+        [0, 2],
+      ],
+    );
+
+    letItThink(state);
+
+    expect(state.squads[0]!.to).toBe(2);
+  });
+
+  test('will not throw at a fortress a force that would only take a plain node', () => {
+    const plainTarget = makeState(
+      [makeNode(0, { owner: AI_PLAYER, points: 60 }), makeNode(1, { owner: 0, points: 25 })],
+      [[0, 1]],
+    );
+    const walled = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER, points: 60 }),
+        makeNode(1, { owner: 0, points: 25, kind: 'fortress' }),
+      ],
+      [[0, 1]],
+    );
+
+    letItThink(plainTarget);
+    letItThink(walled);
+
+    expect(plainTarget.squads).toHaveLength(1);
+    expect(walled.squads).toHaveLength(0);
+  });
+
+  test('storms a fortress once it has double the force', () => {
+    const state = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER, points: 150 }),
+        makeNode(1, { owner: 0, points: 25, kind: 'fortress' }),
+      ],
+      [[0, 1]],
+    );
+
+    letItThink(state);
+
+    expect(state.squads).toHaveLength(1);
+    expect(state.squads[0]!.amount).toBeGreaterThan(50);
+  });
+
+  test('takes the cheaper of a plain node and a fortress worth the same', () => {
+    const state = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER, points: 80 }),
+        makeNode(1, { owner: NEUTRAL, points: 5, capacity: 50, kind: 'base' }),
+        makeNode(2, { owner: NEUTRAL, points: 5, capacity: 50, kind: 'fortress' }),
+      ],
+      [
+        [0, 1],
+        [0, 2],
+      ],
+    );
+
+    letItThink(state);
+
+    expect(state.squads[0]!.to).toBe(1);
+  });
+
+  test('expects a farm it is attacking to regrow faster while the attack flies', () => {
+    const plain = makeState(
+      [makeNode(0, { owner: AI_PLAYER, points: 90 }), makeNode(1, { owner: 0, points: 30 })],
+      [[0, 1]],
+    );
+    const farm = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER, points: 90 }),
+        makeNode(1, { owner: 0, points: 30, kind: 'farm' }),
+      ],
+      [[0, 1]],
+    );
+
+    letItThink(plain);
+    letItThink(farm);
+
+    expect(farm.squads[0]!.amount).toBeGreaterThan(plain.squads[0]!.amount);
+  });
+
   test('a harder opponent reacts faster', () => {
     expect(DIFFICULTIES.hard.reactionTime).toBeLessThan(DIFFICULTIES.normal.reactionTime);
     expect(DIFFICULTIES.normal.reactionTime).toBeLessThan(DIFFICULTIES.easy.reactionTime);
@@ -279,6 +369,36 @@ describe('createAi', () => {
     letItThink(state);
 
     expect(state.squads.some((squad) => squad.from === 0 && squad.to === 1)).toBe(true);
+  });
+
+  test('moves reserves up even while there is fighting somewhere else', () => {
+    // A starved outpost that cannot afford the node in front of it, and a
+    // busy front with more easy captures than the bot has orders to give.
+    const nodes = [
+      makeNode(0, { owner: AI_PLAYER, points: 60, capacity: 60 }),
+      makeNode(1, { owner: AI_PLAYER, points: 25, capacity: 25 }),
+      makeNode(2, { owner: NEUTRAL, points: 80, capacity: 90 }),
+    ];
+    const edges: [number, number][] = [
+      [0, 1],
+      [1, 2],
+    ];
+    for (let i = 0; i < 8; i++) {
+      const attacker = 3 + i * 2;
+      nodes.push(makeNode(attacker, { owner: AI_PLAYER, points: 60, capacity: 60 }));
+      nodes.push(makeNode(attacker + 1, { owner: NEUTRAL, points: 5, capacity: 25 }));
+      edges.push([attacker, attacker + 1]);
+    }
+    const state = makeState(nodes, edges);
+
+    letItThink(state, 'hard');
+
+    expect(
+      state.squads.some((squad) => squad.from === 0 && squad.to === 1),
+      'the outpost never got reinforced while the front was busy',
+    ).toBe(true);
+    expect(state.squads.filter((squad) => squad.to % 2 === 0 && squad.to > 3).length)
+      .toBeGreaterThan(0);
   });
 
   test('never sends reserves backwards, away from the fighting', () => {

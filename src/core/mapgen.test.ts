@@ -250,3 +250,46 @@ describe('map size', () => {
     expect(roomy.nodes.length).toBeLessThan(packed.nodes.length);
   });
 });
+
+describe('node kinds', () => {
+  function kindsOn(seed: number) {
+    return generateMap({ ...CONFIG, seed }).nodes.map((n) => n.kind);
+  }
+
+  test('a board carries both fortresses and farms', () => {
+    for (const seed of [80, 81, 82]) {
+      const kinds = kindsOn(seed);
+
+      expect(kinds, `seed ${seed}`).toContain('fortress');
+      expect(kinds, `seed ${seed}`).toContain('farm');
+    }
+  });
+
+  test('plain nodes are still the common case', () => {
+    const kinds = kindsOn(83);
+    const plain = kinds.filter((kind) => kind === 'base').length;
+
+    expect(plain / kinds.length).toBeGreaterThan(0.5);
+  });
+
+  test('both players open on a plain node, so neither starts with terrain', () => {
+    for (let seed = 90; seed < 100; seed++) {
+      const state = generateMap({ ...CONFIG, seed });
+
+      for (const player of [0, 1]) {
+        expect(state.nodes.find((n) => n.owner === player)!.kind, `seed ${seed}`).toBe('base');
+      }
+    }
+  });
+
+  test('a kind can land on a node of any size', () => {
+    const radii = new Set<number>();
+    for (let seed = 100; seed < 115; seed++) {
+      for (const node of generateMap({ ...CONFIG, seed }).nodes) {
+        if (node.kind === 'fortress') radii.add(node.radius);
+      }
+    }
+
+    expect(radii.size).toBeGreaterThan(1);
+  });
+});

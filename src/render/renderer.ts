@@ -7,7 +7,7 @@ import {
   Sprite,
   Text,
 } from 'pixi.js';
-import { NEUTRAL, type GameState, type Squad } from '../core/state';
+import { NEUTRAL, type GameNode, type GameState, type Squad } from '../core/state';
 import { COLORS, FONT_FAMILY, factionOf } from './theme';
 import { createBrushes, type Brushes } from './textures';
 
@@ -163,7 +163,11 @@ export class GameRenderer {
       glow.position.set(node.x, node.y);
       this.glowLayer.addChild(glow);
 
-      const disc = new Sprite(this.brushes.disc);
+      // A fortress is a different silhouette, not just a different colour:
+      // shape survives at the edge of vision where a tint does not.
+      const disc = new Sprite(
+        node.kind === 'fortress' ? this.brushes.bastion : this.brushes.disc,
+      );
       disc.anchor.set(0.5);
       disc.position.set(node.x, node.y);
       disc.width = node.radius * 2;
@@ -231,7 +235,9 @@ export class GameRenderer {
       const fill = Math.min(1, node.points / node.capacity);
       // Owned nodes breathe in time with their income; a full node sits bright
       // and still, which reads as "these points are going to waste".
-      const breath = node.owner === NEUTRAL ? 0 : Math.sin(time * 2.2 + index) * 0.06;
+      // A farm breathes at twice the rate, in time with the income it earns.
+      const pace = node.kind === 'farm' ? 4.4 : 2.2;
+      const breath = node.owner === NEUTRAL ? 0 : Math.sin(time * pace + index) * 0.06;
 
       view.glow.tint = faction.glow;
       view.glow.alpha = node.owner === NEUTRAL ? 0.18 + fill * 0.2 : 0.45 + fill * 0.5;
@@ -276,6 +282,8 @@ export class GameRenderer {
         .circle(node.x, node.y, node.radius)
         .stroke({ width: 2, color: faction.glow, alpha: 0.35 });
 
+      this.drawKindMark(view.ring, node, faction.glow);
+
       if (fill <= 0) return;
       const from = -Math.PI / 2;
       const to = from + Math.PI * 2 * fill;
@@ -288,6 +296,29 @@ export class GameRenderer {
           alpha: full ? 0.95 : 0.9,
         });
     });
+  }
+
+  /** The badge that says what kind of node this is: armour, or sun rays. */
+  private drawKindMark(ring: Graphics, node: GameNode, colour: number): void {
+    if (node.kind === 'fortress') {
+      ring
+        .circle(node.x, node.y, node.radius * 1.24)
+        .stroke({ width: 2, color: colour, alpha: 0.45 });
+      return;
+    }
+
+    if (node.kind !== 'farm') return;
+
+    // Rays sit outside the node so they never crowd the number inside it.
+    for (let ray = 0; ray < 6; ray++) {
+      const angle = (ray * Math.PI) / 3 + Math.PI / 6;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      ring
+        .moveTo(node.x + cos * node.radius * 1.18, node.y + sin * node.radius * 1.18)
+        .lineTo(node.x + cos * node.radius * 1.5, node.y + sin * node.radius * 1.5)
+        .stroke({ width: 2.5, color: colour, alpha: 0.6 });
+    }
   }
 
   private drawStreams(

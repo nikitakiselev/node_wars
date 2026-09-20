@@ -10,6 +10,8 @@ import { Texture } from 'pixi.js';
 export interface Brushes {
   glow: Texture;
   disc: Texture;
+  /** Flat-topped hexagon: the body of a fortress. */
+  bastion: Texture;
   mote: Texture;
 }
 
@@ -22,6 +24,7 @@ export function createBrushes(): Brushes {
       [1, 'rgba(255,255,255,0)'],
     ]),
     disc: discTexture(128),
+    bastion: hexagonTexture(128),
     mote: radialTexture(32, [
       [0, 'rgba(255,255,255,1)'],
       [0.35, 'rgba(255,255,255,0.7)'],
@@ -41,6 +44,29 @@ function radialTexture(size: number, stops: [number, string][]): Texture {
   for (const [offset, color] of stops) gradient.addColorStop(offset, color);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
+
+  return Texture.from(canvas);
+}
+
+function hexagonTexture(size: number): Texture {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  const half = size / 2;
+  const radius = half - 1;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  for (let corner = 0; corner < 6; corner++) {
+    const angle = (corner * Math.PI) / 3;
+    const x = half + Math.cos(angle) * radius;
+    const y = half + Math.sin(angle) * radius;
+    if (corner === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
 
   return Texture.from(canvas);
 }

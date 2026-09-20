@@ -1,7 +1,14 @@
-import { GROWTH_PER_SECOND } from '../core/growth';
+import { FORTRESS_DEFENCE } from '../core/combat';
+import { growthRateOf } from '../core/growth';
 import { SQUAD_SPEED, sendSquad } from '../core/orders';
 import type { Rng } from '../core/rng';
-import { NEUTRAL, type GameNode, type GameState, type OwnerId } from '../core/state';
+import {
+  NEUTRAL,
+  type GameNode,
+  type GameState,
+  type NodeKind,
+  type OwnerId,
+} from '../core/state';
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
@@ -56,6 +63,19 @@ export const DIFFICULTIES: Record<Difficulty, AiConfig> = {
  */
 const ALL_IN_PENALTY = 0.35;
 
+/**
+ * What a node is worth beyond its capacity.
+ *
+ * A farm earns twice as much, so it is worth twice as much. A fortress earns
+ * nothing extra but is cheap to hold once taken, which carries a premium —
+ * though not one that outweighs costing double to crack.
+ */
+const KIND_WORTH: Record<NodeKind, number> = {
+  base: 1,
+  fortress: 1.4,
+  farm: 2,
+};
+
 export interface Ai {
   /** Advances the bot's own clock and issues an order when it is due. */
   update(state: GameState, dt: number): void;
@@ -82,22 +102,83 @@ export function createAi(player: OwnerId, difficulty: Difficulty, rng: Rng): Ai 
 
       // Each order changes the board, so the next one is chosen against the
       // state it leaves behind rather than a stale snapshot.
-      for (let issued = 0; issued < config.ordersPerDecision; issued++) {
-        const move = chooseMove(state, player, config, rng);
-        if (!move) break;
-        if (!sendSquad(state, player, move.from, move.to, move.fraction)) break;
-      }
+      issue(state, player, config.ordersPerDecision, () =>
+        chooseAttack(state, player, config, rng),
+      );
+      // Logistics gets its own budget. Sharing one with attacks meant a busy
+      // front ate every order and a quiet outpost was never reinforced — a
+      // pocket of neutral nodes could then sit untaken for the whole match.
+      issue(state, player, supportOrders(config), () =>
+        chooseSupport(state, player, config, rng),
+      );
     },
   };
 }
 
-function chooseMove(
+/** Orders a bot may spend on logistics per decision, beyond its attacks. */
+function supportOrders(config: AiConfig): number {
+  return Math.max(1, Math.round(config.ordersPerDecision / 3));
+}
+
+/** Issues up to `budget` orders, stopping as soon as there is nothing to do. */
+function issue(
+  state: GameState,
+  player: OwnerId,
+  budget: number,
+  next: () => Move | null,
+): void {
+  for (let issued = 0; issued < budget; issued++) {
+    const move = next();
+    if (!move) return;
+    if (!sendSquad(state, player, move.from, move.to, move.fraction)) return;
+  }
+}
+
+function chooseAttack(
   state: GameState,
   player: OwnerId,
   config: AiConfig,
   rng: Rng,
 ): Move | null {
   const attacks: Move[] = [];
+
+  for (const source of state.nodes) {
+    if (source.owner !== player) continue;
+
+    for (const targetId of state.adjacency[source.id] ?? []) {
+      const target = state.nodes[targetId];
+      if (!target || target.owner === player) continue;
+
+      // Anything already on its way counts. Without this the bot spends a
+      // second wave on a node the first wave has already taken.
+      const move = evaluate(
+        state,
+        source,
+        target,
+        config,
+        inboundFriendly(state, targetId, player),
+      );
+      if (move) attacks.push(move);
+    }
+  }
+
+  return pick(attacks, config, rng);
+}
+
+/**
+ * Picks a node to ship reserves to.
+ *
+ * Reserves flow down the hop gradient towards the fighting. Without this the
+ * whole depth of an empire is dead weight: only the ring of nodes touching the
+ * border ever contributes, and a large empire grinds against a small one on
+ * even terms.
+ */
+function chooseSupport(
+  state: GameState,
+  player: OwnerId,
+  config: AiConfig,
+  rng: Rng,
+): Move | null {
   const supports: Move[] = [];
   const toFront = distanceToFront(state, player);
 
@@ -106,27 +187,13 @@ function chooseMove(
 
     for (const targetId of state.adjacency[source.id] ?? []) {
       const target = state.nodes[targetId];
-      if (!target) continue;
-
-      // Anything already on its way counts. Without this the bot spends a
-      // second wave on a node the first wave has already taken.
-      const inbound = inboundFriendly(state, targetId, player);
-
-      if (target.owner !== player) {
-        const move = evaluate(state, source, target, config, inbound);
-        if (move) attacks.push(move);
-        continue;
-      }
+      if (!target || target.owner !== player) continue;
 
       // Measured: letting reserves stack on a node that already has a squad
       // inbound made matches finish less often, not more. One wave at a time
       // keeps the rear from dumping its whole garrison into a single node.
-      if (inbound > 0) continue;
+      if (inboundFriendly(state, targetId, player) > 0) continue;
 
-      // Reserves flow down the gradient towards the fighting. Without this the
-      // whole depth of an empire is dead weight: only the ring of nodes
-      // touching the border ever contributes, and a large empire grinds
-      // against a small one on even terms.
       const here = toFront[source.id] ?? Infinity;
       const there = toFront[targetId] ?? Infinity;
       if (!(there < here)) continue;
@@ -136,9 +203,10 @@ function chooseMove(
     }
   }
 
-  // Taking ground always beats shuffling it about; reserves move only when
-  // there is nothing worth attacking.
-  const moves = attacks.length > 0 ? attacks : supports;
+  return pick(supports, config, rng);
+}
+
+function pick(moves: Move[], config: AiConfig, rng: Rng): Move | null {
   if (moves.length === 0) return null;
   moves.sort((left, right) => right.score - left.score);
 
@@ -215,13 +283,15 @@ function evaluate(
   if (!edge) return null;
 
   const flightSeconds = edge.length / SQUAD_SPEED;
-  const reinforcements = target.owner === NEUTRAL ? 0 : GROWTH_PER_SECOND * flightSeconds;
+  const reinforcements = target.owner === NEUTRAL ? 0 : growthRateOf(target) * flightSeconds;
   // The cushion is a fixed number of points, not a percentage. A percentage
   // looks prudent early and becomes unreachable late: once two fronts stack up
   // in parity, neither can ever get a fifth ahead of the other, and the match
   // deadlocks with both sides hoarding.
-  const needed =
-    Math.ceil(target.points + reinforcements + 1 + config.safetyPoints) - inbound;
+  const defence = target.points + reinforcements + 1 + config.safetyPoints;
+  // Walls are paid for in points sent, so the whole requirement doubles.
+  const wall = target.kind === 'fortress' ? FORTRESS_DEFENCE : 1;
+  const needed = Math.ceil(defence * wall) - inbound;
   if (needed < 1) return null;
 
   const affordable = Math.floor(source.points * config.commitment);
@@ -233,7 +303,10 @@ function evaluate(
   // Worth is what the node will eventually produce; cost is what the attack
   // spends and how long it is in the air. Taking ground from the human is
   // worth more than the same node sitting neutral.
-  const worth = target.capacity * (target.owner === NEUTRAL ? 1 : config.aggression);
+  const worth =
+    target.capacity *
+    KIND_WORTH[target.kind] *
+    (target.owner === NEUTRAL ? 1 : config.aggression);
   const score = (worth / (needed + flightSeconds * 10)) * (allIn ? ALL_IN_PENALTY : 1);
 
   return { from: source.id, to: target.id, fraction, score };

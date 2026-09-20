@@ -1,7 +1,7 @@
 import { buildGraph, type GraphEdge } from './graph';
 import { poissonDiskSample, type Point } from './poisson';
 import { createRng, type Rng } from './rng';
-import { NEUTRAL, type Edge, type GameNode, type GameState } from './state';
+import { NEUTRAL, type Edge, type GameNode, type GameState, type NodeKind } from './state';
 
 /** Points both players open with, identical so neither starts ahead. */
 export const START_POINTS = 25;
@@ -15,6 +15,16 @@ const SIZE_TIERS = [
 
 /** Widest node on the map; the layout keeps this much clear of the edges. */
 const LARGEST_RADIUS = Math.max(...SIZE_TIERS.map((tier) => tier.radius));
+
+/**
+ * How often each kind turns up. Rolled independently of size, so a small
+ * fortress and a sprawling farm are both ordinary sights.
+ */
+const KIND_WEIGHTS: { kind: NodeKind; weight: number }[] = [
+  { kind: 'base', weight: 70 },
+  { kind: 'fortress', weight: 15 },
+  { kind: 'farm', weight: 15 },
+];
 
 /** Tier both starting nodes are forced to, so the opening is symmetric. */
 const START_TIER = SIZE_TIERS[1];
@@ -94,8 +104,11 @@ function drawMap(config: MapConfig, rng: Rng, crowding = 1): GameState | null {
   for (const [player, nodeId] of starts.entries()) {
     const node = state.nodes[nodeId]!;
     node.owner = player;
+    // Openings are identical by construction: same size, same points, no
+    // terrain bonus for whoever happened to be seated on a farm.
     node.radius = START_TIER.radius;
     node.capacity = START_TIER.capacity;
+    node.kind = 'base';
     node.points = START_POINTS;
   }
 
@@ -110,6 +123,7 @@ function makeNode(id: number, point: Point, rng: Rng, garrison: number): GameNod
     y: point.y,
     radius: tier.radius,
     capacity: tier.capacity,
+    kind: weightedKind(rng),
     owner: NEUTRAL,
     points: Math.min(tier.capacity, Math.max(1, Math.round(tier.capacity * garrison))),
   };
@@ -123,6 +137,16 @@ function weightedTier(rng: Rng) {
     if (roll <= 0) return tier;
   }
   return SIZE_TIERS[0];
+}
+
+function weightedKind(rng: Rng): NodeKind {
+  const total = KIND_WEIGHTS.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = rng.float(0, total);
+  for (const entry of KIND_WEIGHTS) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.kind;
+  }
+  return 'base';
 }
 
 function assemble(nodes: GameNode[], points: Point[], graphEdges: GraphEdge[]): GameState {

@@ -23,10 +23,38 @@
       <div></div>
 
       <div class="footer">
-        <p class="hint">
-          Тяните от своего узла к соседнему, чтобы отправить половину очков.
-          <kbd>Shift</kbd> — отправить всё, <kbd>Alt</kbd> — четверть.
-        </p>
+        <div>
+          <p class="hint">
+            Тяните от своего узла к соседнему, чтобы отправить половину очков.
+            <kbd>Shift</kbd> — отправить всё, <kbd>Alt</kbd> — четверть.
+          </p>
+          <p class="legend">
+            <span>
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <polygon
+                  points="17,10 13.5,16 6.5,16 3,10 6.5,4 13.5,4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                />
+                <circle cx="10" cy="10" r="8.2" fill="none" stroke="currentColor"
+                  stroke-width="1" opacity="0.5" />
+              </svg>
+              Крепость: захват стоит вдвое дороже
+            </span>
+            <span>
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <circle cx="10" cy="10" r="5.2" fill="none" stroke="currentColor"
+                  stroke-width="1.6" />
+                <g stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                  <path d="M10 1.4v2.2M10 16.4v2.2M18.6 10h-2.2M3.6 10H1.4" />
+                  <path d="M16 4l-1.6 1.6M5.6 14.4L4 16M16 16l-1.6-1.6M5.6 5.6L4 4" />
+                </g>
+              </svg>
+              Ферма: очки растут вдвое быстрее
+            </span>
+          </p>
+        </div>
         <div class="controls">
           <span data-seed></span>
           <button type="button" data-open-settings>Новая партия</button>

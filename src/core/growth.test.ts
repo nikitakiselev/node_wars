@@ -9,6 +9,7 @@ function node(overrides: Partial<GameNode> = {}): GameNode {
     y: 0,
     radius: 20,
     capacity: 50,
+    kind: 'base',
     owner: 0,
     points: 10,
     ...overrides,
@@ -46,6 +47,39 @@ describe('applyGrowth', () => {
     applyGrowth([n], 10);
 
     expect(n.points).toBe(50);
+  });
+
+  test('a farm grows twice as fast as a plain node', () => {
+    const plain = node({ points: 0, kind: 'base' });
+    const farm = node({ points: 0, kind: 'farm' });
+
+    applyGrowth([plain, farm], 3);
+
+    expect(farm.points).toBeCloseTo(plain.points * 2);
+  });
+
+  test('a farm fills faster but holds no more', () => {
+    const farm = node({ points: 0, capacity: 50, kind: 'farm' });
+
+    applyGrowth([farm], 100);
+
+    expect(farm.points).toBe(50);
+  });
+
+  test('a neutral farm does not grow either', () => {
+    const farm = node({ owner: NEUTRAL, points: 10, kind: 'farm' });
+
+    applyGrowth([farm], 5);
+
+    expect(farm.points).toBe(10);
+  });
+
+  test('a fortress grows at the ordinary rate', () => {
+    const fortress = node({ points: 0, kind: 'fortress' });
+
+    applyGrowth([fortress], 4);
+
+    expect(fortress.points).toBeCloseTo(GROWTH_PER_SECOND * 4);
   });
 
   test('a node reinforced above capacity keeps its points but does not grow', () => {

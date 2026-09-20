@@ -44,9 +44,22 @@ Everything random comes from `createRng(seed)`. A seed reproduces a match
 exactly — same map, same bot decisions — which is how map bugs get reported and
 how `Match` replay tests work. Do not reach for `Math.random()` in core or ai.
 
+## Node kinds
+
+`NodeKind` is `base | fortress | farm`, rolled independently of size and never
+given to a starting node. A fortress halves incoming *hostile* force
+(`effectiveAttack` in `combat.ts`), so taking it costs double; reinforcing your
+own is not halved. A farm doubles growth rate (`growthRateOf` in `growth.ts`)
+but not capacity, which keeps node size an honest read of the cap.
+
+Adding a kind touches five places: `KIND_WEIGHTS` (mapgen), `growthRateOf`
+and/or `effectiveAttack`, `KIND_WORTH` (ai), `drawKindMark` (renderer) and the
+legend in `index.html`. Kinds are shown by silhouette, never by colour — colour
+already means ownership.
+
 ## Bot tuning that is load-bearing
 
-Three properties in `src/ai/ai.ts` were arrived at by measuring bot-vs-bot
+Four properties in `src/ai/ai.ts` were arrived at by measuring bot-vs-bot
 matches, and undoing any of them brings back matches that never end:
 
 - **The safety cushion is a fixed number of points, not a percentage.** A
@@ -57,15 +70,20 @@ matches, and undoing any of them brings back matches that never end:
   weight — 43 nodes once ground against 9 on even terms.
 - **Attacks subtract friendly squads already inbound.** Otherwise a second wave
   is spent on a node the first wave has taken.
+- **Logistics has its own order budget**, separate from attacks
+  (`supportOrders`). Sharing one budget let a busy front eat every order, so a
+  quiet outpost was never reinforced and a pocket of neutral nodes could stay
+  untaken for a whole match — an unwinnable map.
 
 Letting reinforcements stack on a node that already has one inbound was tried
 and measurably made things worse; it is deliberately refused.
 
 `src/app/match.test.ts` plays whole matches and is the only thing that catches
 game-level stalls — unit tests happily pass while the game deadlocks. Known
-limitation encoded there: two equal bots sometimes cannot mop up the last
-pocket inside 20 minutes, so the tests assert the measured behaviour (the board
-always gets fully claimed; most matches reach a winner) rather than an ideal.
+limitation encoded there: two identical bots often cannot finish each other
+inside 20 minutes, because both reinforce continuously. The tests assert what
+is measured — the board is always fully claimed, and an unfinished match is
+lopsided rather than frozen — rather than an ideal.
 
 ## Rendering pitfalls
 

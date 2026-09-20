@@ -125,6 +125,30 @@ body {
   color: #6f868c;
 }
 
+.hint {
+  margin: 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 7px 0 0;
+  color: #5e757c;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+
 .hint kbd {
   padding: 1px 6px;
   border: 1px solid #1a4049;
