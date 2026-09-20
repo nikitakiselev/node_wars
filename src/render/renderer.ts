@@ -239,7 +239,7 @@ export class GameRenderer {
    */
   draw(state: GameState, alpha: number, stepSeconds: number, drag: DragHint = EMPTY_DRAG): void {
     const time = state.time + stepSeconds * alpha;
-    this.drawNodes(state, time);
+    this.drawNodes(state, time, drag.selected);
     this.drawRings(state);
     this.drawStreams(state, alpha, stepSeconds, time);
     this.drawLiveEdges(state, drag);
@@ -247,7 +247,13 @@ export class GameRenderer {
     this.advanceFlashes(state, stepSeconds * alpha);
   }
 
-  private drawNodes(state: GameState, time: number): void {
+  /**
+   * @param selected the node the player has picked out, drawn brighter while
+   * the rest of the board steps back. Nothing is added to the picture: the
+   * glow each node already has is what carries the signal, so the board does
+   * not collect another ring on top of the three it has.
+   */
+  private drawNodes(state: GameState, time: number, selected: number | null): void {
     state.nodes.forEach((node, index) => {
       const view = this.views[index];
       if (!view) return;
@@ -260,14 +266,19 @@ export class GameRenderer {
       const pace = node.kind === 'farm' ? 4.4 : 2.2;
       const breath = node.owner === NEUTRAL ? 0 : Math.sin(time * pace + index) * 0.06;
 
+      const isChosen = node.id === selected;
+      const dimmed = selected !== null && !isChosen;
+
       view.glow.tint = faction.glow;
-      view.glow.alpha = node.owner === NEUTRAL ? 0.18 + fill * 0.2 : 0.45 + fill * 0.5;
-      const glowSize = node.radius * (3.4 + fill * 0.9 + breath);
+      const base = node.owner === NEUTRAL ? 0.18 + fill * 0.2 : 0.45 + fill * 0.5;
+      view.glow.alpha = isChosen ? Math.min(1, base * 1.8 + 0.2) : dimmed ? base * 0.4 : base;
+      const glowSize =
+        node.radius * (3.4 + fill * 0.9 + breath) * (isChosen ? 1.3 : 1);
       view.glow.width = glowSize;
       view.glow.height = glowSize;
 
       view.disc.tint = faction.core;
-      view.disc.alpha = node.owner === NEUTRAL ? 0.85 : 1;
+      view.disc.alpha = (node.owner === NEUTRAL ? 0.85 : 1) * (dimmed ? 0.7 : 1);
 
       // Building a node up makes it physically bigger, so the sprites sized
       // at build time have to be resized when its level moves.
@@ -284,7 +295,7 @@ export class GameRenderer {
         view.label.text = text;
         view.lastLabel = text;
       }
-      view.label.alpha = node.owner === NEUTRAL ? 0.65 : 1;
+      view.label.alpha = (node.owner === NEUTRAL ? 0.65 : 1) * (dimmed ? 0.55 : 1);
     });
   }
 
@@ -464,15 +475,6 @@ export class GameRenderer {
 
   private drawLiveEdges(state: GameState, drag: DragHint): void {
     this.liveEdgeLayer.clear();
-
-    if (drag.selected !== null) {
-      const chosen = state.nodes[drag.selected];
-      if (chosen) {
-        this.liveEdgeLayer
-          .circle(chosen.x, chosen.y, chosen.radius * 1.62)
-          .stroke({ width: 2, color: COLORS.foam, alpha: 0.75 });
-      }
-    }
 
     if (drag.from !== null) {
       const source = state.nodes[drag.from];
