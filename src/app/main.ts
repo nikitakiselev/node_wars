@@ -46,9 +46,13 @@ const hud = {
 };
 
 const dialog = document.querySelector<HTMLDialogElement>('.setup')!;
+const setupForm = dialog.querySelector('form')!;
+
 let settings: MatchSettings = { ...defaultSettings(), seed: randomSeed() };
 let match = new Match(settings);
 let seats: { bar: HTMLElement; nodes: HTMLElement; points: HTMLElement }[] = [];
+/** The match to return to if the setup dialog is dismissed without starting. */
+let resumed: Match = match;
 
 const controls = new PointerControls(
   { canvas: app.canvas, toWorld: (x, y) => renderer.toWorld(x, y) },
@@ -57,9 +61,8 @@ const controls = new PointerControls(
 );
 
 buildSettingsForm();
-startMatch(settings);
-dialog.showModal();
-app.ticker.stop();
+showMatch(match);
+openSettings();
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 1_000_000);
@@ -87,39 +90,53 @@ function opponentChoices(): Record<string, { label: string }> {
   return choices;
 }
 
-dialog.addEventListener('close', () => {
-  app.ticker.start();
-  if (dialog.returnValue !== 'start') return;
-
-  settings = {
-    seed: randomSeed(),
+/** The settings the dialog currently describes, on the seed being previewed. */
+function settingsFromForm(seed: number): MatchSettings {
+  return {
+    seed,
     mapSize: readChoice(dialog, 'mapSize') as MatchSettings['mapSize'],
     mapDifficulty: readChoice(dialog, 'mapDifficulty') as MatchSettings['mapDifficulty'],
     aiCount: Number(readChoice(dialog, 'aiCount')),
     difficulty: readChoice(dialog, 'difficulty') as Difficulty,
   };
-  startMatch(settings);
+}
+
+function openSettings(): void {
+  resumed = match;
+  // The board behind the dialog is the board you are about to play, so every
+  // change to the form redraws it on one fixed seed: only the setting you
+  // touched moves, not the whole map.
+  showMatch(new Match(settingsFromForm(randomSeed())));
+  dialog.showModal();
+  app.ticker.stop();
+}
+
+setupForm.addEventListener('change', () => {
+  showMatch(new Match(settingsFromForm(match.settings.seed)));
+});
+
+dialog.addEventListener('close', () => {
+  // Dismissing the dialog puts the match that was running back on screen; the
+  // preview was only ever a preview.
+  if (dialog.returnValue !== 'start') showMatch(resumed);
+  settings = match.settings;
+  app.ticker.start();
 });
 
 for (const button of document.querySelectorAll('[data-open-settings]')) {
-  button.addEventListener('click', () => {
-    dialog.showModal();
-    // Nothing behind the dialog is worth drawing, and the match should not
-    // run on while you are setting up the next one.
-    app.ticker.stop();
-  });
+  button.addEventListener('click', openSettings);
 }
 
-function startMatch(next: MatchSettings): void {
-  match = new Match(next);
+/** Puts a match on screen and paints one frame of it. */
+function showMatch(next: Match): void {
+  match = next;
   renderer.build(match.state);
-  buildScoreboard(next.aiCount + 1);
-  hud.seed.textContent = `Карта ${next.seed}`;
-  hud.verdict.hidden = true;
+  buildScoreboard(match.settings.aiCount + 1);
+  hud.seed.textContent = `Карта ${match.settings.seed}`;
+  hud.verdict.hidden = match.state.winner === null;
 
-  // One frame right away: the board sits visible behind the setup dialog
-  // while the ticker is stopped, and drawing the scene is not the same as
-  // putting it on the canvas — with the ticker paused, nothing else will.
+  // Drawing the scene is not the same as putting it on the canvas: while the
+  // ticker is paused for the dialog, nothing else will.
   renderer.draw(match.state, 0, STEP_SECONDS, controls.hint);
   paintHud();
   app.render();
