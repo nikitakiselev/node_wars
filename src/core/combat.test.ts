@@ -120,7 +120,19 @@ describe('resolveArrival', () => {
     expect(farm.points).toBe(12);
   });
 
-  test('a captured node loses a level: storming it wrecks what was built', () => {
+  test('taking neutral ground keeps whatever level it had', () => {
+    // Nobody built it up, so there is nothing for the storm to wreck, and
+    // demoting it would only punish expanding early.
+    const target = node({ owner: NEUTRAL, points: 10, level: 3, capacity: 90 });
+
+    resolveArrival(target, squad({ owner: 0, amount: 20 }));
+
+    expect(target.owner).toBe(0);
+    expect(target.level).toBe(3);
+    expect(target.capacity).toBe(90);
+  });
+
+  test('a node captured from a player loses a level: storming wrecks what was built', () => {
     const target = node({ owner: 1, points: 10, level: 3, capacity: 90 });
 
     resolveArrival(target, squad({ owner: 0, amount: 20 }));

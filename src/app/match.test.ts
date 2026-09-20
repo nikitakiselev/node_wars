@@ -35,9 +35,10 @@ function playOut(seed: number, left: Difficulty, right: Difficulty, maxMinutes =
 }
 
 describe('a full match', () => {
-  test('the whole board gets claimed within the first several minutes', () => {
+  test('the board is mostly claimed early and fully claimed later', () => {
     // The failure this guards against is a dead match: bots that expand a
     // little and then sit on their hands while the map stays neutral.
+    // Measured: usually clear by minute three to five, once as late as twelve.
     for (const seed of [1, 2, 3, 4, 5]) {
       const state = generateMap({ ...MAP, seed });
       const bots = [
@@ -45,15 +46,17 @@ describe('a full match', () => {
         createAi(1, 'normal', createRng(seed + 2)),
       ];
 
-      // Measured: neutral ground runs out between minute three and six now
-      // that bots spend some of their early income on building up.
-      for (let i = 0; i < 480 / STEP_SECONDS && state.winner === null; i++) {
-        step(state, STEP_SECONDS);
-        for (const bot of bots) bot.update(state, STEP_SECONDS);
-      }
+      const neutralAfter = (seconds: number) => {
+        while (state.time < seconds && state.winner === null) {
+          step(state, STEP_SECONDS);
+          for (const bot of bots) bot.update(state, STEP_SECONDS);
+        }
+        return state.nodes.filter((n) => n.owner === NEUTRAL).length;
+      };
 
-      const neutral = state.nodes.filter((n) => n.owner === NEUTRAL).length;
-      expect(neutral, `seed ${seed} left ${neutral} nodes unclaimed`).toBe(0);
+      const early = neutralAfter(300);
+      expect(early / state.nodes.length, `seed ${seed} at five minutes`).toBeLessThan(0.1);
+      expect(neutralAfter(900), `seed ${seed} at fifteen minutes`).toBe(0);
     }
   });
 

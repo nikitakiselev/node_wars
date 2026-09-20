@@ -50,7 +50,8 @@ A node's size **is** its level, one to five, and `capacity`/`radius` are
 derived from it. `applyLevel` in `levels.ts` is the only thing that writes any
 of the three, so they cannot drift apart. Upgrading costs the capacity it adds
 and is paid from the node's own garrison (`upgradeNode`); capturing a node
-knocks it down a level, inside `resolveArrival`.
+**from another player** knocks it down a level, inside `resolveArrival`;
+neutral ground keeps its level, since nobody built it up.
 
 Two consequences worth knowing before changing things here. Map margins are cut
 for `radiusForLevel(MAX_LEVEL)`, not for the level a node starts at, or a node
