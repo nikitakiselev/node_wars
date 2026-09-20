@@ -21,6 +21,7 @@ import {
   defaultSettings,
   type MatchSettings,
 } from './match';
+import { renderHelp } from './help';
 import { readOptions } from './options';
 import { buildChoices, readChoice } from './settings-form';
 import './style.css';
@@ -82,6 +83,14 @@ function setPaused(next: boolean): void {
   updateRunning();
 }
 
+const helpDialog = document.querySelector<HTMLDialogElement>('.help')!;
+renderHelp(helpDialog.querySelector<HTMLElement>('[data-help-body]')!);
+
+// One panel, three ways in: the footer, the setup dialog and the pause screen.
+for (const button of document.querySelectorAll('[data-help]')) {
+  button.addEventListener('click', () => helpDialog.showModal());
+}
+
 document.querySelector('[data-resume]')!.addEventListener('click', () => setPaused(false));
 
 // Leaving the window pauses: a real-time game running unwatched is just a game
@@ -96,8 +105,8 @@ if (options.autoPause) {
 
 window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
-  // The setup dialog handles Escape itself; two owners would fight over it.
-  if (dialog.open) return;
+  // A dialog handles Escape itself; two owners would fight over it.
+  if (dialog.open || helpDialog.open) return;
   event.preventDefault();
   setPaused(!paused);
 });

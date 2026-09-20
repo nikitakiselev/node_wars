@@ -120,6 +120,14 @@ player could be wiped out while neutral nodes remained and the game would say
 nothing at all. `isEliminated` in `simulation.ts` is also what the HUD uses to
 tell a human they are out while bots fight on among themselves.
 
+## The rules panel
+
+`app/help.ts` is the single source of the in-game rules, opened from the
+footer, the setup dialog and the pause screen. Every number in it —
+capacities, upgrade costs, the fortress and farm multipliers — is read from
+the tables the game plays by, so tuning balance cannot leave the help saying
+something else. Its tests assert exactly that, plus that it stays short.
+
 ## Rendering pitfalls
 
 - **Point totals are written with `formatPoints`** (`core/format.ts`), which
