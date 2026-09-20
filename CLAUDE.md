@@ -1,0 +1,112 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+Node Wars is a browser strategy game: a randomly generated planar graph of
+nodes, players sending points along edges to capture neighbours, and up to five
+heuristic bots. TypeScript, PixiJS 8 (WebGL), Vite, Vitest.
+
+## Commands
+
+```bash
+make dev                              # dev server on http://localhost:5173
+make test                             # all tests
+make check                            # tests + tsc --noEmit + production build
+make deploy M="what changed"          # verify, commit, push, wait for Pages
+npx vitest run src/ai/ai.test.ts      # one file
+npx vitest run -t "goes all in"       # one test by name
+npx vitest                            # watch mode
+```
+
+`make deploy` runs `make check` first, so a failing test or type error never
+reaches the live site at https://nikitakiselev.github.io/node_wars/.
+
+## The layering rule
+
+`src/core` and `src/ai` must not import Pixi or touch the DOM. That is what
+lets the whole rule set and the bots run under Vitest in Node in milliseconds.
+Only `src/render`, `src/input` and `src/app/main.ts` know about the browser.
+
+The renderer reads a `GameState` and paints it; it owns no rules. A squad is
+one record (`from`, `to`, `amount`, `progress`) that the renderer expands into
+a particle stream, so visual work can change freely without touching combat.
+
+`src/core/fixtures.ts` is test-only. Nothing in the running game imports it.
+
+## Time
+
+The simulation advances on a fixed 30 Hz step (`FixedTimestep` in
+`src/app/loop.ts`); the renderer runs at display rate and interpolates using
+the `alpha` the clock exposes. Bots are updated inside that same fixed step, so
+a slow machine faces the same opponents as a fast one.
+
+Everything random comes from `createRng(seed)`. A seed reproduces a match
+exactly — same map, same bot decisions — which is how map bugs get reported and
+how `Match` replay tests work. Do not reach for `Math.random()` in core or ai.
+
+## Bot tuning that is load-bearing
+
+Three properties in `src/ai/ai.ts` were arrived at by measuring bot-vs-bot
+matches, and undoing any of them brings back matches that never end:
+
+- **The safety cushion is a fixed number of points, not a percentage.** A
+  percentage is unreachable at scale: two fronts growing in parity means
+  neither ever gets a fifth ahead, and the match deadlocks with both hoarding.
+- **Reserves flow down a hop-distance gradient to the nearest border**
+  (`distanceToFront`). One-hop reinforcement leaves an empire's depth as dead
+  weight — 43 nodes once ground against 9 on even terms.
+- **Attacks subtract friendly squads already inbound.** Otherwise a second wave
+  is spent on a node the first wave has taken.
+
+Letting reinforcements stack on a node that already has one inbound was tried
+and measurably made things worse; it is deliberately refused.
+
+`src/app/match.test.ts` plays whole matches and is the only thing that catches
+game-level stalls — unit tests happily pass while the game deadlocks. Known
+limitation encoded there: two equal bots sometimes cannot mop up the last
+pocket inside 20 minutes, so the tests assert the measured behaviour (the board
+always gets fully claimed; most matches reach a winner) rather than an ideal.
+
+## Rendering pitfalls
+
+- **Pixi keeps one current point across path calls.** Batching `moveTo`/`lineTo`
+  pairs and stroking once chains every node to the last, and an `arc` without a
+  preceding `moveTo` draws a leader line into it. Stroke each segment
+  separately; `moveTo` the arc's start first.
+- **Node rings are one `Graphics` per node**, redrawn only when a signature of
+  owner and quantised fill changes. A single shared `Graphics` re-tessellates
+  the whole board every frame and is most of what the game costs.
+- **`renderer.draw()` does not put anything on the canvas.** The ticker normally
+  renders; it is stopped while the setup dialog is open, so a frame drawn then
+  needs an explicit `app.render()`.
+- The frame rate is capped at 60 (`app.ticker.maxFPS`); the simulation is 30 Hz
+  and uncapped drawing only heats the machine.
+
+## Map generation
+
+Poisson-disk points, Delaunay triangulation, then random thinning that removes
+the longest edges first and never breaks connectivity. Delaunay is what keeps
+the graph planar — **edges must never cross**, or players cannot read who is
+connected to whom.
+
+A starting node must have at least two neighbours and one neighbour it can take
+with its opening points. The furthest-apart pair on a Delaunay mesh is almost
+always two corner dead ends, which produces slow, lopsided openings and can wall
+a player in permanently. Maps are drawn repeatedly and rejected until the
+weakest opening is within 75% of the strongest.
+
+## Deployment
+
+The Vite `base` is derived from `GITHUB_REPOSITORY` at build time, because a
+GitHub project page serves from `/<repo>/` and a root-relative build loads
+blank. Locally it stays `/`.
+
+Release logic lives in `scripts/deploy.sh`, not in the Makefile: macOS ships GNU
+Make 3.81, which ignores `.ONESHELL` and runs every recipe line in its own
+shell, so anything with an `if` falls apart there.
+
+## Design decisions
+
+`docs/design.md` records why the rules and architecture are what they are.
+Node kinds are modelled (`NodeKind`) but only `base` exists; adding a
+higher-income kind should be a table change, not new code paths.
