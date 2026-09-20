@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Node Wars</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="board"></div>
+
+    <div class="hud">
+      <div>
+        <div class="tide" data-tide></div>
+        <div class="readout" data-readout></div>
+      </div>
+
+      <div></div>
+
+      <div class="footer">
+        <p class="hint">
+          Тяните от своего узла к соседнему, чтобы отправить половину очков.
+          <kbd>Shift</kbd> — отправить всё, <kbd>Alt</kbd> — четверть.
+        </p>
+        <div class="controls">
+          <span data-seed></span>
+          <button type="button" data-open-settings>Новая партия</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="verdict" hidden>
+      <p data-verdict></p>
+      <button type="button" data-open-settings>Ещё партию</button>
+    </div>
+
+    <dialog class="setup">
+      <form method="dialog">
+        <h1>Новая партия</h1>
+
+        <fieldset>
+          <legend>Размер карты</legend>
+          <div class="choices" data-choices="mapSize"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Соперники</legend>
+          <div class="choices" data-choices="aiCount"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Нейтральные узлы</legend>
+          <div class="choices" data-choices="mapDifficulty"></div>
+          <p class="note">Насколько дорого обходится захват ничейной территории.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Уровень соперников</legend>
+          <div class="choices" data-choices="difficulty"></div>
+        </fieldset>
+
+        <div class="setup__actions">
+          <button type="submit" value="start" class="primary">Начать</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/app/main.ts"></script>
+  </body>
+</html>
