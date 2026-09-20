@@ -2,10 +2,11 @@ import { describe, expect, test } from 'vitest';
 import { createAi, type Difficulty } from '../ai/ai';
 import { generateMap } from '../core/mapgen';
 import { createRng } from '../core/rng';
-import { step } from '../core/simulation';
+import { isEliminated, step } from '../core/simulation';
 import { standingsFor } from '../core/standings';
 import { NEUTRAL } from '../core/state';
 import {
+  HUMAN,
   MAP_SIZES,
   MAX_OPPONENTS,
   Match,
@@ -206,5 +207,35 @@ describe('match settings', () => {
       m.state.nodes.filter((n) => n.owner === NEUTRAL).reduce((sum, n) => sum + n.points, 0);
 
     expect(neutralPoints(harsh)).toBeGreaterThan(neutralPoints(gentle));
+  });
+});
+
+describe('a human who never plays', () => {
+  test('is told they lost instead of being left staring at the board', () => {
+    // The reported bug: wiped out, nothing left, and the game said nothing,
+    // because no one yet held every node.
+    const match = new Match({ ...defaultSettings(), seed: 512, difficulty: 'hard' });
+
+    let toldAtSecond = -1;
+    for (let frame = 0; frame < 60 * 60 * 6; frame++) {
+      match.advance(1 / 60);
+      if (match.state.winner !== null || isEliminated(match.state, HUMAN)) {
+        toldAtSecond = Math.round(match.state.time);
+        break;
+      }
+    }
+
+    expect(toldAtSecond, 'six minutes passed without a verdict').toBeGreaterThan(0);
+    expect(match.state.nodes.filter((n) => n.owner === HUMAN)).toHaveLength(0);
+  });
+
+  test('losing does not wait for the winner to mop up neutral ground', () => {
+    const match = new Match({ ...defaultSettings(), seed: 512, difficulty: 'hard' });
+    while (!isEliminated(match.state, HUMAN) && match.state.time < 600) {
+      match.advance(1 / 60);
+    }
+
+    expect(isEliminated(match.state, HUMAN)).toBe(true);
+    expect(match.state.winner).not.toBeNull();
   });
 });

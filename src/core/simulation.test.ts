@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { NEUTRAL } from './state';
 import { makeNode, makeState } from './fixtures';
+import { isEliminated } from './simulation';
 import { sendSquad } from './orders';
 import { step } from './simulation';
 
@@ -87,10 +88,13 @@ describe('step', () => {
     expect(state.winner).toBe(0);
   });
 
-  test('no winner while a neutral node remains', () => {
+  test('neutral ground does not decide a match while two players are alive', () => {
     const state = makeState(
-      [makeNode(0, { owner: 0 }), makeNode(1, { owner: NEUTRAL })],
-      [[0, 1]],
+      [makeNode(0, { owner: 0 }), makeNode(1, { owner: 1 }), makeNode(2, { owner: NEUTRAL })],
+      [
+        [0, 1],
+        [1, 2],
+      ],
     );
 
     step(state, 0.1);
@@ -120,5 +124,84 @@ describe('step', () => {
     step(state, 5);
 
     expect(state.nodes[0]!.points).toBeCloseTo(10.1);
+  });
+});
+
+describe('losing', () => {
+  test('a player holding nothing, with nothing in flight, is out', () => {
+    const state = makeState(
+      [makeNode(0, { owner: 1, points: 10 }), makeNode(1, { owner: NEUTRAL, points: 10 })],
+      [[0, 1]],
+    );
+
+    expect(isEliminated(state, 0)).toBe(true);
+    expect(isEliminated(state, 1)).toBe(false);
+  });
+
+  test('a player whose last node just fell is still in it while their squad flies', () => {
+    const state = makeState(
+      [makeNode(0, { owner: 0, points: 20 }), makeNode(1, { owner: 1, points: 40 })],
+      [[0, 1]],
+    );
+    sendSquad(state, 0, 0, 1, 0.5);
+    state.nodes[0]!.owner = 1;
+
+    expect(isEliminated(state, 0)).toBe(false);
+  });
+
+  test('the last player standing wins even with neutral ground left over', () => {
+    // The reported bug: the human was wiped out and the game said nothing,
+    // because nobody yet held every node on the board.
+    const state = makeState(
+      [
+        makeNode(0, { owner: 1, points: 10 }),
+        makeNode(1, { owner: NEUTRAL, points: 10 }),
+        makeNode(2, { owner: NEUTRAL, points: 10 }),
+      ],
+      [
+        [0, 1],
+        [1, 2],
+      ],
+    );
+
+    step(state, 0.1);
+
+    expect(state.winner).toBe(1);
+  });
+
+  test('no winner while two players are both still alive', () => {
+    const state = makeState(
+      [
+        makeNode(0, { owner: 0, points: 10 }),
+        makeNode(1, { owner: 1, points: 10 }),
+        makeNode(2, { owner: NEUTRAL, points: 10 }),
+      ],
+      [
+        [0, 1],
+        [1, 2],
+      ],
+    );
+
+    step(state, 0.1);
+
+    expect(state.winner).toBeNull();
+  });
+
+  test('the survivor of a three-way is not declared early', () => {
+    const state = makeState(
+      [
+        makeNode(0, { owner: 1, points: 10 }),
+        makeNode(1, { owner: 2, points: 10 }),
+        makeNode(2, { owner: NEUTRAL, points: 10 }),
+      ],
+      [
+        [0, 1],
+        [1, 2],
+      ],
+    );
+
+    step(state, 0.1);
+
+    expect(state.winner).toBeNull();
   });
 });

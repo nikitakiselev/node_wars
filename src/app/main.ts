@@ -1,5 +1,6 @@
 import { Application } from 'pixi.js';
 import type { Difficulty } from '../ai/ai';
+import { isEliminated } from '../core/simulation';
 import { standingsFor } from '../core/standings';
 import { PointerControls } from '../input/pointer';
 import { GameRenderer } from '../render/renderer';
@@ -147,7 +148,7 @@ function showMatch(next: Match): void {
   renderer.markHome(match.state.nodes.find((node) => node.owner === HUMAN)?.id ?? null);
   buildScoreboard(match.settings.aiCount + 1);
   hud.seed.textContent = `Карта ${match.settings.seed}`;
-  hud.verdict.hidden = match.state.winner === null;
+  hud.verdict.hidden = verdictFor() === null;
 
   // Drawing the scene is not the same as putting it on the canvas: while the
   // ticker is paused for the dialog, nothing else will.
@@ -199,9 +200,22 @@ function paintHud(): void {
     seat.points.textContent = String(Math.round(standing.points));
   });
 
-  const winner = match.state.winner;
-  if (winner === null) return;
+  const verdict = verdictFor();
+  if (verdict === null) return;
   hud.verdict.hidden = false;
-  hud.verdictText.textContent =
-    winner === HUMAN ? 'Сеть ваша' : `Сеть потеряна: ${factionOf(winner).label}`;
+  hud.verdictText.textContent = verdict;
+}
+
+/**
+ * What to tell the player, or null while the match is still theirs to play.
+ *
+ * Being wiped out ends your match even when the bots fight on among
+ * themselves, so this does not wait for an overall winner.
+ */
+function verdictFor(): string | null {
+  const winner = match.state.winner;
+  if (winner === HUMAN) return 'Сеть ваша';
+  if (winner !== null) return `Сеть потеряна: победил ${factionOf(winner).label}`;
+  if (isEliminated(match.state, HUMAN)) return 'Сеть потеряна';
+  return null;
 }

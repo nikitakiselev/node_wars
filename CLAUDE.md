@@ -85,6 +85,14 @@ inside 20 minutes, because both reinforce continuously. The tests assert what
 is measured — the board is always fully claimed, and an unfinished match is
 lopsided rather than frozen — rather than an ideal.
 
+## Winning and losing
+
+A match ends when one player is left alive; alive means holding a node **or**
+having a squad in the air. Requiring someone to hold every node was a bug — a
+player could be wiped out while neutral nodes remained and the game would say
+nothing at all. `isEliminated` in `simulation.ts` is also what the HUD uses to
+tell a human they are out while bots fight on among themselves.
+
 ## Rendering pitfalls
 
 - **Pixi keeps one current point across path calls.** Batching `moveTo`/`lineTo`
