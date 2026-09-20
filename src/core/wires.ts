@@ -1,8 +1,8 @@
 import { sendSquad } from './orders';
 import { NEUTRAL, type GameState, type OwnerId } from './state';
 
-/** How much of a filled node goes down its wire. The rest stays as garrison. */
-export const WIRE_SEND_FRACTION = 0.5;
+/** Share of its ceiling a wired node holds back as garrison. */
+export const WIRE_KEEP_SHARE = 0.5;
 
 /**
  * Supply wires.
@@ -10,7 +10,7 @@ export const WIRE_SEND_FRACTION = 0.5;
  * A bot issues a dozen orders a second and a player cannot, and the gap is
  * almost entirely logistics — hauling reserves from a quiet rear to the
  * fighting. A wire does that hauling: once a node fills up and stops earning,
- * it pushes half of itself to the neighbour the wire points at.
+ * everything above half its ceiling goes to the neighbour the wire points at.
  *
  * They carry, they do not conquer. A wire only runs between two nodes you
  * already hold, so choosing what to attack stays a decision you make.
@@ -67,6 +67,11 @@ export function flushWires(state: GameState): void {
     }
 
     if (source.points < source.capacity) return;
-    sendSquad(state, source.owner, fromId, toId, WIRE_SEND_FRACTION);
+
+    // Everything over the garrison leaves in one shipment. Sending a fixed
+    // share instead would dribble a node that has just been handed a large
+    // load out over several steps, as a queue of scraps.
+    const keep = source.capacity * WIRE_KEEP_SHARE;
+    sendSquad(state, source.owner, fromId, toId, (source.points - keep) / source.points);
   });
 }

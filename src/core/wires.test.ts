@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { makeNode, makeState } from './fixtures';
 import { applyLevel } from './levels';
 import { NEUTRAL, type GameState } from './state';
-import { WIRE_SEND_FRACTION, clearWire, flushWires, setWire, wireFrom } from './wires';
+import { WIRE_KEEP_SHARE, clearWire, flushWires, setWire, wireFrom } from './wires';
 
 /** Two adjacent nodes owned by player 0, plus a spare that is not adjacent. */
 function board(): GameState {
@@ -92,18 +92,33 @@ describe('laying a wire', () => {
 });
 
 describe('what a wire carries', () => {
-  test('a node that has filled up sends half of itself along', () => {
+  test('a node that has filled up sends everything above half its ceiling', () => {
     const state = board();
     setWire(state, 0, 0, 1);
     fill(state, 0);
-    const before = state.nodes[0]!.points;
+    const capacity = state.nodes[0]!.capacity;
 
     flushWires(state);
 
     expect(state.squads).toHaveLength(1);
     expect(state.squads[0]!.from).toBe(0);
     expect(state.squads[0]!.to).toBe(1);
-    expect(state.squads[0]!.amount).toBe(Math.floor(before * WIRE_SEND_FRACTION));
+    expect(state.squads[0]!.amount).toBe(Math.floor(capacity * (1 - WIRE_KEEP_SHARE)));
+    expect(state.nodes[0]!.points).toBe(capacity * WIRE_KEEP_SHARE);
+  });
+
+  test('a node handed more than it can hold forwards the surplus in one go', () => {
+    // A node in the middle of a chain receives a shipment far over its cap.
+    // Dribbling it out over several steps would look like a queue of scraps.
+    const state = board();
+    setWire(state, 0, 0, 1);
+    const node = state.nodes[0]!;
+    node.points = node.capacity * 4;
+
+    flushWires(state);
+
+    expect(state.squads).toHaveLength(1);
+    expect(state.nodes[0]!.points).toBe(node.capacity * WIRE_KEEP_SHARE);
   });
 
   test('a node still filling up sends nothing', () => {
