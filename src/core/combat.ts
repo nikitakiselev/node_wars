@@ -1,3 +1,4 @@
+import { applyLevel } from './levels';
 import type { GameNode, Squad } from './state';
 
 /** How much of an attack a fortress shrugs off. Half in, so double to take. */
@@ -16,6 +17,9 @@ export function effectiveAttack(target: GameNode, amount: number): number {
  * survives the walls; only a strictly larger force flips ownership, and it
  * keeps the surplus as the new garrison. An exact tie leaves the defender in
  * place with an empty node — still theirs, and one point takes it.
+ *
+ * Taking a node knocks it down a level: the storm wrecks part of what was
+ * built there, so a breakthrough does not hand over an intact economy.
  */
 export function resolveArrival(target: GameNode, squad: Squad): void {
   if (target.owner === squad.owner) {
@@ -27,6 +31,7 @@ export function resolveArrival(target: GameNode, squad: Squad): void {
   if (remaining < 0) {
     target.owner = squad.owner;
     target.points = -remaining;
+    applyLevel(target, target.level - 1);
   } else {
     target.points = remaining;
   }

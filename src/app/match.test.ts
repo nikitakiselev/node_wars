@@ -35,7 +35,7 @@ function playOut(seed: number, left: Difficulty, right: Difficulty, maxMinutes =
 }
 
 describe('a full match', () => {
-  test('the whole board gets claimed within the first few minutes', () => {
+  test('the whole board gets claimed within the first several minutes', () => {
     // The failure this guards against is a dead match: bots that expand a
     // little and then sit on their hands while the map stays neutral.
     for (const seed of [1, 2, 3, 4, 5]) {
@@ -45,7 +45,9 @@ describe('a full match', () => {
         createAi(1, 'normal', createRng(seed + 2)),
       ];
 
-      for (let i = 0; i < 300 / STEP_SECONDS && state.winner === null; i++) {
+      // Measured: neutral ground runs out between minute three and six now
+      // that bots spend some of their early income on building up.
+      for (let i = 0; i < 480 / STEP_SECONDS && state.winner === null; i++) {
         step(state, STEP_SECONDS);
         for (const bot of bots) bot.update(state, STEP_SECONDS);
       }
@@ -66,23 +68,16 @@ describe('a full match', () => {
     }
   });
 
-  test('matches between equal bots either end or become lopsided', () => {
-    // Two identical bots can grind to a near-draw, so this asserts the useful
-    // property: the stronger position keeps growing rather than freezing.
+  test('most matches between equal bots are settled', () => {
+    // Before nodes could be built up, two equal bots ground to a near-draw on
+    // six maps out of ten. Compounding economies break that: a small lead now
+    // grows into a win. Measured at 8/10; the bar leaves room for variance.
     let finished = 0;
     for (let seed = 1; seed <= 10; seed++) {
-      const state = playOut(seed, 'hard', 'hard');
-      if (state.winner !== null) {
-        finished++;
-        continue;
-      }
-
-      const held = [0, 1].map((p) => state.nodes.filter((n) => n.owner === p).length);
-      const leader = Math.max(...held) / state.nodes.length;
-      expect(leader, `seed ${seed} stalled at a dead heat`).toBeGreaterThan(0.6);
+      if (playOut(seed, 'hard', 'hard').winner !== null) finished++;
     }
 
-    expect(finished).toBeGreaterThanOrEqual(3);
+    expect(finished).toBeGreaterThanOrEqual(6);
   });
 
   test('a decided match leaves nothing unclaimed', () => {

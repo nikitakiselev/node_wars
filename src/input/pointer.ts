@@ -16,15 +16,23 @@ interface Surface {
  * has; Shift keeps half back, Alt sends only a quarter. Releasing anywhere
  * else cancels, so a misdrag costs nothing.
  */
+/** Pointer travel, in world units, still counted as a click rather than a drag. */
+const CLICK_SLOP = 8;
+
 export class PointerControls {
   private from: number | null = null;
   private cursor: { x: number; y: number } | null = null;
   private targets = new Set<number>();
+  private pressedAt: { x: number; y: number } | null = null;
+  private chosen: number | null = null;
 
   constructor(
     private readonly surface: Surface,
     private readonly player: OwnerId,
     private readonly getState: () => GameState,
+    /** Called when the picked-out node changes, so controls can follow at
+     * once rather than on the next frame. */
+    private readonly onSelectionChange: () => void = () => {},
   ) {
     const canvas = surface.canvas;
     canvas.addEventListener('pointerdown', this.onDown);
@@ -35,7 +43,28 @@ export class PointerControls {
   }
 
   get hint(): DragHint {
-    return { from: this.from, cursor: this.cursor, targets: this.targets };
+    return {
+      from: this.from,
+      cursor: this.cursor,
+      targets: this.targets,
+      selected: this.chosen,
+    };
+  }
+
+  /** The node the player has picked out, or null. */
+  get selected(): number | null {
+    return this.chosen;
+  }
+
+  /** Drops the selection, for when the node is lost or the board is replaced. */
+  clearSelection(): void {
+    this.select(null);
+  }
+
+  private select(nodeId: number | null): void {
+    if (this.chosen === nodeId) return;
+    this.chosen = nodeId;
+    this.onSelectionChange();
   }
 
   destroy(): void {
@@ -56,8 +85,13 @@ export class PointerControls {
     const state = this.getState();
     const point = this.pointAt(event);
     const node = nodeAtPoint(state, point.x, point.y);
-    if (!node || node.owner !== this.player) return;
+    if (!node || node.owner !== this.player) {
+      // A press on empty ground puts the selection away.
+      this.select(null);
+      return;
+    }
 
+    this.pressedAt = point;
     this.from = node.id;
     this.cursor = point;
     this.targets = new Set(
@@ -80,8 +114,20 @@ export class PointerControls {
     const point = this.pointAt(event);
     const target = nodeAtPoint(state, point.x, point.y);
 
+    // A press and release in the same spot is a click, not a throw: it picks
+    // the node out so its controls appear, rather than ordering an attack.
+    const travelled = this.pressedAt
+      ? Math.hypot(point.x - this.pressedAt.x, point.y - this.pressedAt.y)
+      : Infinity;
+    if (travelled <= CLICK_SLOP && target?.id === this.from) {
+      this.select(this.chosen === this.from ? null : this.from);
+      this.clear();
+      return;
+    }
+
     if (target && target.id !== this.from) {
       sendSquad(state, this.player, this.from, target.id, fractionFor(event));
+      this.select(null);
     }
 
     this.clear();
@@ -92,6 +138,7 @@ export class PointerControls {
   private clear(): void {
     this.from = null;
     this.cursor = null;
+    this.pressedAt = null;
     this.targets = new Set();
   }
 }

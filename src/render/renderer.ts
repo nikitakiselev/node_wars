@@ -7,6 +7,7 @@ import {
   Sprite,
   Text,
 } from 'pixi.js';
+import { MAX_LEVEL } from '../core/levels';
 import { NEUTRAL, type GameNode, type GameState, type Squad } from '../core/state';
 import { COLORS, FONT_FAMILY, factionOf } from './theme';
 import { createBrushes, type Brushes } from './textures';
@@ -16,9 +17,11 @@ export interface DragHint {
   from: number | null;
   cursor: { x: number; y: number } | null;
   targets: ReadonlySet<number>;
+  /** The node the player has picked out to work on, if any. */
+  selected: number | null;
 }
 
-const EMPTY_DRAG: DragHint = { from: null, cursor: null, targets: new Set() };
+const EMPTY_DRAG: DragHint = { from: null, cursor: null, targets: new Set(), selected: null };
 
 interface NodeView {
   glow: Sprite;
@@ -29,6 +32,8 @@ interface NodeView {
   lastLabel: string;
   /** What the ring last drew; redrawing is skipped while this holds. */
   lastRing: string;
+  /** Level the sprites were sized for; an upgrade makes the node bigger. */
+  lastLevel: number;
 }
 
 interface Mote {
@@ -132,6 +137,18 @@ export class GameRenderer {
     return { x: point.x, y: point.y };
   }
 
+  /** Converts world coordinates into canvas space, for DOM laid over the board. */
+  toScreen(x: number, y: number): { x: number; y: number } {
+    const point = this.world.toGlobal({ x, y });
+    return { x: point.x, y: point.y };
+  }
+
+  /** Where the controls for a node belong on screen, just clear of its edge. */
+  anchorFor(node: GameNode): { x: number; y: number } {
+    const edge = this.toScreen(node.x + node.radius, node.y);
+    return { x: edge.x + 14, y: edge.y };
+  }
+
   /** Rebuilds every persistent display object for a freshly generated map. */
   build(state: GameState): void {
     this.edgeLayer.clear();
@@ -201,6 +218,7 @@ export class GameRenderer {
         lastOwner: node.owner,
         lastLabel: '',
         lastRing: '',
+        lastLevel: node.level,
       });
     }
   }
@@ -251,6 +269,16 @@ export class GameRenderer {
       view.disc.tint = faction.core;
       view.disc.alpha = node.owner === NEUTRAL ? 0.85 : 1;
 
+      // Building a node up makes it physically bigger, so the sprites sized
+      // at build time have to be resized when its level moves.
+      if (view.lastLevel !== node.level) {
+        view.lastLevel = node.level;
+        const bodySize = node.radius * 2 * (node.kind === 'fortress' ? BASTION_BODY : 1);
+        view.disc.width = bodySize;
+        view.disc.height = bodySize;
+        view.label.style.fontSize = Math.round(node.radius * 0.95);
+      }
+
       const text = String(Math.floor(node.points));
       if (text !== view.lastLabel) {
         view.label.text = text;
@@ -275,7 +303,7 @@ export class GameRenderer {
       const fill = Math.min(1, node.points / node.capacity);
       const full = node.points >= node.capacity;
       // A ring is ~200px around at most, so finer steps than this are invisible.
-      const signature = `${node.owner}:${Math.round(fill * 64)}:${full}`;
+      const signature = `${node.owner}:${node.level}:${Math.round(fill * 64)}:${full}`;
       if (signature === view.lastRing) return;
       view.lastRing = signature;
 
@@ -286,6 +314,7 @@ export class GameRenderer {
         .stroke({ width: 2, color: faction.glow, alpha: 0.35 });
 
       this.drawKindMark(view.ring, node, faction.glow);
+      this.drawLevelPips(view.ring, node, faction.glow);
 
       if (fill <= 0) return;
       const from = -Math.PI / 2;
@@ -322,6 +351,34 @@ export class GameRenderer {
         .moveTo(node.x + cos * node.radius * 1.18, node.y + sin * node.radius * 1.18)
         .lineTo(node.x + cos * node.radius * 1.5, node.y + sin * node.radius * 1.5)
         .stroke({ width: 2.5, color: colour, alpha: 0.6 });
+    }
+  }
+
+  /**
+   * Five ticks under the node, filled to its level.
+   *
+   * Size already hints at how built-up a node is, but not precisely, and not
+   * at all between two adjacent levels. The ticks sit outside the node so they
+   * never crowd the garrison number inside it, and they read on enemy nodes
+   * too — you can see what the other side has invested.
+   */
+  private drawLevelPips(ring: Graphics, node: GameNode, colour: number): void {
+    const width = 5;
+    const gap = 2.5;
+    const span = MAX_LEVEL * width + (MAX_LEVEL - 1) * gap;
+    const left = node.x - span / 2;
+    const y = node.y + node.radius + (node.kind === 'fortress' ? 12 : 8);
+
+    for (let pip = 0; pip < MAX_LEVEL; pip++) {
+      const filled = pip < node.level;
+      ring
+        .moveTo(left + pip * (width + gap), y)
+        .lineTo(left + pip * (width + gap) + width, y)
+        .stroke({
+          width: 2.5,
+          color: filled ? colour : COLORS.filament,
+          alpha: filled ? 0.95 : 0.8,
+        });
     }
   }
 
@@ -407,6 +464,15 @@ export class GameRenderer {
 
   private drawLiveEdges(state: GameState, drag: DragHint): void {
     this.liveEdgeLayer.clear();
+
+    if (drag.selected !== null) {
+      const chosen = state.nodes[drag.selected];
+      if (chosen) {
+        this.liveEdgeLayer
+          .circle(chosen.x, chosen.y, chosen.radius * 1.62)
+          .stroke({ width: 2, color: COLORS.foam, alpha: 0.75 });
+      }
+    }
 
     if (drag.from !== null) {
       const source = state.nodes[drag.from];

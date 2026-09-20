@@ -7,6 +7,7 @@ function node(overrides: Partial<GameNode> = {}): GameNode {
     id: 0,
     x: 0,
     y: 0,
+    level: 2,
     radius: 20,
     capacity: 50,
     kind: 'base',
@@ -117,6 +118,48 @@ describe('resolveArrival', () => {
     resolveArrival(farm, squad({ owner: 0, amount: 8 }));
 
     expect(farm.points).toBe(12);
+  });
+
+  test('a captured node loses a level: storming it wrecks what was built', () => {
+    const target = node({ owner: 1, points: 10, level: 3, capacity: 90 });
+
+    resolveArrival(target, squad({ owner: 0, amount: 20 }));
+
+    expect(target.owner).toBe(0);
+    expect(target.level).toBe(2);
+    expect(target.capacity).toBe(50);
+  });
+
+  test('a first-level node cannot be knocked any lower', () => {
+    const target = node({ owner: 1, points: 5, level: 1, capacity: 25 });
+
+    resolveArrival(target, squad({ owner: 0, amount: 20 }));
+
+    expect(target.level).toBe(1);
+  });
+
+  test('demotion does not touch the garrison the attacker won', () => {
+    const target = node({ owner: 1, points: 10, level: 3, capacity: 90 });
+
+    resolveArrival(target, squad({ owner: 0, amount: 25 }));
+
+    expect(target.points).toBe(15);
+  });
+
+  test('an attack that fails to take the node leaves its level alone', () => {
+    const target = node({ owner: 1, points: 40, level: 3, capacity: 90 });
+
+    resolveArrival(target, squad({ owner: 0, amount: 10 }));
+
+    expect(target.level).toBe(3);
+  });
+
+  test('reinforcing your own node never demotes it', () => {
+    const mine = node({ owner: 0, points: 10, level: 3, capacity: 90 });
+
+    resolveArrival(mine, squad({ owner: 0, amount: 10 }));
+
+    expect(mine.level).toBe(3);
   });
 
   test('a neutral node is captured the same way as an enemy node', () => {

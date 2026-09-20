@@ -1,6 +1,8 @@
 import { Application } from 'pixi.js';
 import type { Difficulty } from '../ai/ai';
+import { MAX_LEVEL, upgradeCost } from '../core/levels';
 import { isEliminated } from '../core/simulation';
+import { upgradeNode } from '../core/upgrade';
 import { standingsFor } from '../core/standings';
 import { PointerControls } from '../input/pointer';
 import { GameRenderer } from '../render/renderer';
@@ -44,7 +46,62 @@ const hud = {
   seed: document.querySelector<HTMLElement>('[data-seed]')!,
   verdict: document.querySelector<HTMLElement>('.verdict')!,
   verdictText: document.querySelector<HTMLElement>('[data-verdict]')!,
+  upgrade: document.querySelector<HTMLElement>('.upgrade')!,
+  upgradeButton: document.querySelector<HTMLButtonElement>('[data-upgrade]')!,
+  upgradeNote: document.querySelector<HTMLElement>('[data-upgrade-note]')!,
+  pause: document.querySelector<HTMLElement>('.pause')!,
 };
+
+/**
+ * The board runs only when nothing is covering it.
+ *
+ * Two separate things stop the clock — the setup dialog and a pause — so one
+ * place decides, rather than each of them calling start and stop and fighting
+ * over who spoke last.
+ */
+let paused = false;
+
+function updateRunning(): void {
+  const blocked = dialog.open || paused;
+  hud.pause.hidden = !paused || dialog.open;
+
+  if (blocked) {
+    app.ticker.stop();
+    return;
+  }
+  app.ticker.start();
+}
+
+function setPaused(next: boolean): void {
+  if (paused === next) return;
+  paused = next;
+  updateRunning();
+}
+
+document.querySelector('[data-resume]')!.addEventListener('click', () => setPaused(false));
+
+// Leaving the window pauses: a real-time game running on unwatched is just a
+// game being lost.
+window.addEventListener('blur', () => setPaused(true));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) setPaused(true);
+});
+
+window.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  // The setup dialog handles Escape itself; two owners would fight over it.
+  if (dialog.open) return;
+  event.preventDefault();
+  setPaused(!paused);
+});
+
+hud.upgradeButton.addEventListener('click', () => {
+  const selected = controls.selected;
+  if (selected === null) return;
+  upgradeNode(match.state, HUMAN, selected);
+  paintUpgradeControl();
+  app.render();
+});
 
 const dialog = document.querySelector<HTMLDialogElement>('.setup')!;
 const setupForm = dialog.querySelector('form')!;
@@ -61,6 +118,11 @@ const controls = new PointerControls(
   { canvas: app.canvas, toWorld: (x, y) => renderer.toWorld(x, y) },
   HUMAN,
   () => match.state,
+  () => {
+    paintUpgradeControl();
+    renderer.draw(match.state, match.alpha, STEP_SECONDS, controls.hint);
+    app.render();
+  },
 );
 
 buildSettingsForm();
@@ -111,7 +173,7 @@ function openSettings(): void {
   // touched moves, not the whole map.
   showMatch(new Match(settingsFromForm(randomSeed())));
   dialog.showModal();
-  app.ticker.stop();
+  updateRunning();
 }
 
 setupForm.addEventListener('change', () => {
@@ -134,7 +196,10 @@ dialog.addEventListener('close', () => {
     started = true;
   }
   settings = match.settings;
-  app.ticker.start();
+  // Starting a match clears any pause that was in force when you opened the
+  // dialog; the board you just set up should be running.
+  paused = false;
+  updateRunning();
 });
 
 for (const button of document.querySelectorAll('[data-open-settings]')) {
@@ -152,9 +217,46 @@ function showMatch(next: Match): void {
 
   // Drawing the scene is not the same as putting it on the canvas: while the
   // ticker is paused for the dialog, nothing else will.
+  controls.clearSelection();
   renderer.draw(match.state, 0, STEP_SECONDS, controls.hint);
   paintHud();
   app.render();
+}
+
+/**
+ * Parks the upgrade control beside the selected node.
+ *
+ * It is DOM rather than something drawn into the canvas so that it is a real
+ * button: hover, keyboard focus and a proper hit area come for free.
+ */
+function paintUpgradeControl(): void {
+  const selected = controls.selected;
+  const node = selected === null ? undefined : match.state.nodes[selected];
+
+  if (!node || node.owner !== HUMAN) {
+    hud.upgrade.hidden = true;
+    if (node && node.owner !== HUMAN) controls.clearSelection();
+    return;
+  }
+
+  const anchor = renderer.anchorFor(node);
+  hud.upgrade.hidden = false;
+  hud.upgrade.style.left = `${anchor.x}px`;
+  hud.upgrade.style.top = `${anchor.y}px`;
+
+  const cost = upgradeCost(node.level);
+  if (cost === null) {
+    hud.upgradeButton.disabled = true;
+    hud.upgradeNote.textContent = `Уровень ${MAX_LEVEL} — дальше некуда`;
+    return;
+  }
+
+  const short = Math.ceil(cost - node.points);
+  hud.upgradeButton.disabled = short > 0;
+  hud.upgradeNote.textContent =
+    short > 0
+      ? `Уровень ${node.level} → ${node.level + 1}: не хватает ${short}`
+      : `Уровень ${node.level} → ${node.level + 1} за ${cost}`;
 }
 
 /** Rebuilds the scoreboard, which has one seat per player in the match. */
@@ -190,6 +292,7 @@ app.ticker.add((ticker) => {
   match.advance(Math.min(ticker.deltaMS / 1000, 0.25));
   renderer.draw(match.state, match.alpha, STEP_SECONDS, controls.hint);
   paintHud();
+  paintUpgradeControl();
 });
 
 function paintHud(): void {

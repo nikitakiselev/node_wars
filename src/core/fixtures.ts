@@ -7,6 +7,7 @@ export function makeNode(id: number, overrides: Partial<GameNode> = {}): GameNod
     id,
     x: id * 100,
     y: 0,
+    level: 2,
     radius: 20,
     capacity: 50,
     kind: 'base',

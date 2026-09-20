@@ -37,7 +37,7 @@ export interface Faction {
 export const NEUTRAL_FACTION: Faction = {
   glow: COLORS.silt,
   core: COLORS.siltCore,
-  label: 'Ничьё',
+  label: 'Нейтральные',
 };
 
 /**

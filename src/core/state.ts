@@ -22,6 +22,11 @@ export interface GameNode {
   y: number;
   /** Drawn radius. Capacity is derived from it, so size is honest to the eye. */
   radius: number;
+  /**
+   * How far the node has been built up, 1..MAX_LEVEL. Capacity and radius are
+   * derived from it; use applyLevel to change any of the three.
+   */
+  level: number;
   /** Points the node grows to on its own. Reinforcements may exceed it. */
   capacity: number;
   kind: NodeKind;

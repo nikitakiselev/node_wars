@@ -62,6 +62,17 @@
       </div>
     </div>
 
+    <div class="pause" hidden>
+      <p>Пауза</p>
+      <button type="button" data-resume>Продолжить</button>
+      <span class="pause__hint">Esc или клик по окну</span>
+    </div>
+
+    <div class="upgrade" hidden>
+      <button type="button" data-upgrade aria-label="Поднять уровень узла">+</button>
+      <span class="upgrade__note" data-upgrade-note></span>
+    </div>
+
     <div class="verdict" hidden>
       <p data-verdict></p>
       <button type="button" data-open-settings>Ещё партию</button>
@@ -84,7 +95,7 @@
         <fieldset>
           <legend>Нейтральные узлы</legend>
           <div class="choices" data-choices="mapDifficulty"></div>
-          <p class="note">Насколько дорого обходится захват ничейной территории.</p>
+          <p class="note">Насколько дорого обходится захват нейтральной территории.</p>
         </fieldset>
 
         <fieldset>

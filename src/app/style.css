@@ -328,3 +328,101 @@ body {
     transition: none;
   }
 }
+
+/* Pause */
+
+.pause {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  background: rgba(4, 18, 26, 0.88);
+  pointer-events: auto;
+}
+
+.pause[hidden] {
+  display: none;
+}
+
+.pause p {
+  margin: 0;
+  font-size: clamp(28px, 6vw, 52px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.pause button {
+  border: 1px solid var(--foam);
+  border-radius: 999px;
+  padding: 9px 22px;
+  background: var(--foam);
+  color: var(--water-deep);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pause button:focus-visible {
+  outline: 2px solid var(--jade);
+  outline-offset: 3px;
+}
+
+.pause__hint {
+  font-size: 13px;
+  color: #6f868c;
+}
+
+/* Upgrade control, laid over the board next to the selected node */
+
+.upgrade {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.upgrade[hidden] {
+  display: none;
+}
+
+.upgrade button {
+  pointer-events: auto;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: 1px solid var(--foam);
+  border-radius: 50%;
+  background: var(--foam);
+  color: var(--water-deep);
+  font: inherit;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.upgrade button:disabled {
+  background: transparent;
+  border-color: #2b6b78;
+  color: #5e757c;
+  cursor: default;
+}
+
+.upgrade button:focus-visible {
+  outline: 2px solid var(--jade);
+  outline-offset: 3px;
+}
+
+.upgrade__note {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(4, 18, 26, 0.85);
+  color: #9fb4b8;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}

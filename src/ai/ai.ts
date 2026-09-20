@@ -1,6 +1,8 @@
 import { FORTRESS_DEFENCE } from '../core/combat';
 import { growthRateOf } from '../core/growth';
+import { upgradeCost } from '../core/levels';
 import { SQUAD_SPEED, sendSquad } from '../core/orders';
+import { upgradeNode } from '../core/upgrade';
 import type { Rng } from '../core/rng';
 import {
   NEUTRAL,
@@ -108,11 +110,47 @@ export function createAi(player: OwnerId, difficulty: Difficulty, rng: Rng): Ai 
       // Logistics gets its own budget. Sharing one with attacks meant a busy
       // front ate every order and a quiet outpost was never reinforced — a
       // pocket of neutral nodes could then sit untaken for the whole match.
+      // Building comes before shipping: logistics would otherwise empty a full
+      // rear node every decision and it would never save up for anything.
+      // Building up is its own kind of order for the same reason logistics is —
+      // a bot that only spends on attacks never grows its income, and a human
+      // who builds will out-earn it inside one match.
+      build(state, player, config, rng);
       issue(state, player, supportOrders(config), () =>
         chooseSupport(state, player, config, rng),
       );
     },
   };
+}
+
+/**
+ * Builds up rear nodes that have stopped earning.
+ *
+ * Only nodes that are full — their income is going nowhere — and that are not
+ * holding a border, where the garrison is needed as a garrison.
+ */
+function build(state: GameState, player: OwnerId, config: AiConfig, rng: Rng): void {
+  const toFront = distanceToFront(state, player);
+
+  const candidates = state.nodes
+    .filter((node) => {
+      if (node.owner !== player) return false;
+      if ((toFront[node.id] ?? 0) < 1) return false;
+      if (node.points < node.capacity) return false;
+      const cost = upgradeCost(node.level);
+      return cost !== null && node.points >= cost;
+    })
+    // A farm earns double, so building one pays back twice as fast.
+    .map((node) => ({ node, score: growthRateOf(node) / upgradeCost(node.level)! }))
+    .sort((left, right) => right.score - left.score);
+
+  const wanted = Math.max(1, Math.round(config.ordersPerDecision / 3));
+  for (let built = 0; built < wanted; built++) {
+    const next = candidates[built];
+    if (!next) return;
+    if (rng.next() < config.sloppiness) continue;
+    upgradeNode(state, player, next.node.id);
+  }
 }
 
 /** Orders a bot may spend on logistics per decision, beyond its attacks. */

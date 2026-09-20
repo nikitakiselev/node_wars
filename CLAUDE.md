@@ -44,6 +44,25 @@ Everything random comes from `createRng(seed)`. A seed reproduces a match
 exactly — same map, same bot decisions — which is how map bugs get reported and
 how `Match` replay tests work. Do not reach for `Math.random()` in core or ai.
 
+## Levels
+
+A node's size **is** its level, one to five, and `capacity`/`radius` are
+derived from it. `applyLevel` in `levels.ts` is the only thing that writes any
+of the three, so they cannot drift apart. Upgrading costs the capacity it adds
+and is paid from the node's own garrison (`upgradeNode`); capturing a node
+knocks it down a level, inside `resolveArrival`.
+
+Two consequences worth knowing before changing things here. Map margins are cut
+for `radiusForLevel(MAX_LEVEL)`, not for the level a node starts at, or a node
+built up near the edge hangs off the board. And the renderer sizes its sprites
+at build time, so `drawNodes` resizes them when `lastLevel` no longer matches —
+an upgrade physically changes how big a node is.
+
+In the bot, building comes **before** shipping reserves: with logistics first, a
+full rear node was emptied every decision and never saved up for anything.
+Upgrades measurably made matches more decisive, not less — 8/10 settled versus
+4/10 before.
+
 ## Node kinds
 
 `NodeKind` is `base | fortress | farm`, rolled independently of size and never
@@ -102,6 +121,10 @@ tell a human they are out while bots fight on among themselves.
 - **Node rings are one `Graphics` per node**, redrawn only when a signature of
   owner and quantised fill changes. A single shared `Graphics` re-tessellates
   the whole board every frame and is most of what the game costs.
+- **One function owns the clock.** `updateRunning` in `main.ts` decides whether
+  the ticker runs, because two separate things stop it — the setup dialog and
+  the pause — and letting each call start/stop directly meant whoever spoke
+  last won.
 - **`renderer.draw()` does not put anything on the canvas.** The ticker normally
   renders; it is stopped while the setup dialog is open, so a frame drawn then
   needs an explicit `app.render()`.

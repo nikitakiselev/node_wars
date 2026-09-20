@@ -7,6 +7,7 @@ function node(overrides: Partial<GameNode> = {}): GameNode {
     id: 0,
     x: 0,
     y: 0,
+    level: 2,
     radius: 20,
     capacity: 50,
     kind: 'base',

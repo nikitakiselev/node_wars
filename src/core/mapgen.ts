@@ -1,4 +1,5 @@
 import { buildGraph, type GraphEdge } from './graph';
+import { MAX_LEVEL, applyLevel, capacityForLevel, radiusForLevel } from './levels';
 import { poissonDiskSample, type Point } from './poisson';
 import { createRng, type Rng } from './rng';
 import { NEUTRAL, type Edge, type GameNode, type GameState, type NodeKind } from './state';
@@ -6,15 +7,25 @@ import { NEUTRAL, type Edge, type GameNode, type GameState, type NodeKind } from
 /** Points both players open with, identical so neither starts ahead. */
 export const START_POINTS = 25;
 
-/** Size tiers. Radius is what the player sees; capacity is what it means. */
-const SIZE_TIERS = [
-  { radius: 16, capacity: 25, weight: 5 },
-  { radius: 23, capacity: 50, weight: 3 },
-  { radius: 31, capacity: 90, weight: 2 },
+/**
+ * How often each starting level turns up. A fresh board offers levels one to
+ * three; four and five are only reached by building up during the match.
+ */
+const START_LEVEL_WEIGHTS = [
+  { level: 1, weight: 5 },
+  { level: 2, weight: 3 },
+  { level: 3, weight: 2 },
 ] as const;
 
-/** Widest node on the map; the layout keeps this much clear of the edges. */
-const LARGEST_RADIUS = Math.max(...SIZE_TIERS.map((tier) => tier.radius));
+/** Level both players open on, so the opening is symmetric. */
+const START_LEVEL = 2;
+
+/**
+ * The widest a node can ever get. Margins are cut for a fully upgraded node,
+ * not for the size it starts at, or a node built up near the edge of the map
+ * would hang off it.
+ */
+const LARGEST_RADIUS = radiusForLevel(MAX_LEVEL);
 
 /**
  * How often each kind turns up. Rolled independently of size, so a small
@@ -25,9 +36,6 @@ const KIND_WEIGHTS: { kind: NodeKind; weight: number }[] = [
   { kind: 'fortress', weight: 15 },
   { kind: 'farm', weight: 15 },
 ];
-
-/** Tier both starting nodes are forced to, so the opening is symmetric. */
-const START_TIER = SIZE_TIERS[1];
 
 /** Default share of its capacity an unclaimed node defends with. */
 export const DEFAULT_NEUTRAL_GARRISON = 0.35;
@@ -106,8 +114,7 @@ function drawMap(config: MapConfig, rng: Rng, crowding = 1): GameState | null {
     node.owner = player;
     // Openings are identical by construction: same size, same points, no
     // terrain bonus for whoever happened to be seated on a farm.
-    node.radius = START_TIER.radius;
-    node.capacity = START_TIER.capacity;
+    applyLevel(node, START_LEVEL);
     node.kind = 'base';
     node.points = START_POINTS;
   }
@@ -116,27 +123,29 @@ function drawMap(config: MapConfig, rng: Rng, crowding = 1): GameState | null {
 }
 
 function makeNode(id: number, point: Point, rng: Rng, garrison: number): GameNode {
-  const tier = weightedTier(rng);
+  const level = weightedStartLevel(rng);
+  const capacity = capacityForLevel(level);
   return {
     id,
     x: point.x,
     y: point.y,
-    radius: tier.radius,
-    capacity: tier.capacity,
+    level,
+    radius: radiusForLevel(level),
+    capacity,
     kind: weightedKind(rng),
     owner: NEUTRAL,
-    points: Math.min(tier.capacity, Math.max(1, Math.round(tier.capacity * garrison))),
+    points: Math.min(capacity, Math.max(1, Math.round(capacity * garrison))),
   };
 }
 
-function weightedTier(rng: Rng) {
-  const total = SIZE_TIERS.reduce((sum, tier) => sum + tier.weight, 0);
+function weightedStartLevel(rng: Rng): number {
+  const total = START_LEVEL_WEIGHTS.reduce((sum, entry) => sum + entry.weight, 0);
   let roll = rng.float(0, total);
-  for (const tier of SIZE_TIERS) {
-    roll -= tier.weight;
-    if (roll <= 0) return tier;
+  for (const entry of START_LEVEL_WEIGHTS) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.level;
   }
-  return SIZE_TIERS[0];
+  return 1;
 }
 
 function weightedKind(rng: Rng): NodeKind {

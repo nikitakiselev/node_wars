@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { NEUTRAL, type GameState } from '../core/state';
 import { makeNode, makeState } from '../core/fixtures';
 import { createRng } from '../core/rng';
+import { MAX_LEVEL, applyLevel, capacityForLevel, upgradeCost } from '../core/levels';
 import { DIFFICULTIES, createAi, type Difficulty } from './ai';
 
 const AI_PLAYER = 1;
@@ -272,6 +273,102 @@ describe('createAi', () => {
     expect(farm.squads[0]!.amount).toBeGreaterThan(plain.squads[0]!.amount);
   });
 
+  test('builds up a rear node that has stopped earning', () => {
+    const state = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER }),
+        makeNode(1, { owner: AI_PLAYER }),
+        makeNode(2, { owner: NEUTRAL, points: 5 }),
+      ],
+      [
+        [0, 1],
+        [1, 2],
+      ],
+    );
+    // Node 0 sits behind the border, full to the brim and earning nothing.
+    applyLevel(state.nodes[0]!, 1);
+    state.nodes[0]!.points = state.nodes[0]!.capacity;
+
+    letItThink(state);
+
+    expect(state.nodes[0]!.level).toBe(2);
+  });
+
+  test('does not build up a node that is holding the border', () => {
+    const state = makeState(
+      [makeNode(0, { owner: AI_PLAYER }), makeNode(1, { owner: 0, points: 500 })],
+      [[0, 1]],
+    );
+    applyLevel(state.nodes[0]!, 1);
+    state.nodes[0]!.points = state.nodes[0]!.capacity;
+
+    letItThink(state);
+
+    expect(state.nodes[0]!.level).toBe(1);
+  });
+
+  test('does not build up a node that has not filled up yet', () => {
+    const state = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER }),
+        makeNode(1, { owner: AI_PLAYER }),
+        makeNode(2, { owner: NEUTRAL, points: 5 }),
+      ],
+      [
+        [0, 1],
+        [1, 2],
+      ],
+    );
+    applyLevel(state.nodes[0]!, 1);
+    state.nodes[0]!.points = upgradeCost(1)! - 1;
+
+    letItThink(state);
+
+    expect(state.nodes[0]!.level).toBe(1);
+  });
+
+  test('leaves a node alone once it is built as far as it goes', () => {
+    const state = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER }),
+        makeNode(1, { owner: AI_PLAYER }),
+        makeNode(2, { owner: NEUTRAL, points: 5 }),
+      ],
+      [
+        [0, 1],
+        [1, 2],
+      ],
+    );
+    applyLevel(state.nodes[0]!, MAX_LEVEL);
+    state.nodes[0]!.points = 10_000;
+
+    letItThink(state);
+
+    expect(state.nodes[0]!.level).toBe(MAX_LEVEL);
+    expect(state.nodes[0]!.capacity).toBe(capacityForLevel(MAX_LEVEL));
+  });
+
+  test('building up does not cost it an attack', () => {
+    const state = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER }),
+        makeNode(1, { owner: AI_PLAYER, points: 60 }),
+        makeNode(2, { owner: NEUTRAL, points: 5 }),
+      ],
+      [
+        [0, 1],
+        [1, 2],
+      ],
+    );
+    applyLevel(state.nodes[0]!, 1);
+    state.nodes[0]!.points = state.nodes[0]!.capacity;
+
+    letItThink(state);
+
+    expect(state.nodes[0]!.level).toBe(2);
+    expect(state.squads.some((squad) => squad.to === 2)).toBe(true);
+  });
+
   test('a harder opponent reacts faster', () => {
     expect(DIFFICULTIES.hard.reactionTime).toBeLessThan(DIFFICULTIES.normal.reactionTime);
     expect(DIFFICULTIES.normal.reactionTime).toBeLessThan(DIFFICULTIES.easy.reactionTime);
@@ -350,9 +447,11 @@ describe('createAi', () => {
 
   test('moves reserves up from the deep rear, not just from the border', () => {
     // A chain: node 3 holds the border, node 0 is two hops behind it.
+    // Node 0 is deliberately short of its cap, or it would spend the points
+    // on building itself up instead of shipping them forward.
     const state = makeState(
       [
-        makeNode(0, { owner: AI_PLAYER, points: 50, capacity: 50 }),
+        makeNode(0, { owner: AI_PLAYER, points: 50, capacity: 90 }),
         makeNode(1, { owner: AI_PLAYER, points: 10, capacity: 50 }),
         makeNode(2, { owner: AI_PLAYER, points: 10, capacity: 50 }),
         makeNode(3, { owner: AI_PLAYER, points: 10, capacity: 25 }),

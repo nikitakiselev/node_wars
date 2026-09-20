@@ -3,6 +3,7 @@ import { NEUTRAL, type GameState } from './state';
 import { isConnected } from './graph';
 import { START_POINTS, generateMap, neighbourhoodCapacity } from './mapgen';
 import { MAX_PLAYERS, factionOf } from '../render/theme';
+import { MAX_LEVEL, capacityForLevel, radiusForLevel } from './levels';
 
 const CONFIG = { width: 1200, height: 800, minDistance: 90, keepRatio: 0.55 };
 
@@ -291,5 +292,45 @@ describe('node kinds', () => {
     }
 
     expect(radii.size).toBeGreaterThan(1);
+  });
+});
+
+describe('starting levels', () => {
+  test('capacity and radius always match the level', () => {
+    for (const node of map(200).nodes) {
+      expect(node.capacity, `node ${node.id}`).toBe(capacityForLevel(node.level));
+      expect(node.radius, `node ${node.id}`).toBe(radiusForLevel(node.level));
+    }
+  });
+
+  test('a fresh board has nothing built up yet', () => {
+    const levels = new Set(map(201).nodes.map((n) => n.level));
+
+    expect(Math.min(...levels)).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...levels)).toBeLessThanOrEqual(3);
+  });
+
+  test('a board still offers a mix of sizes', () => {
+    expect(new Set(map(202).nodes.map((n) => n.level)).size).toBeGreaterThan(1);
+  });
+
+  test('both players open on the same level', () => {
+    const state = map(203);
+    const [first] = ownedBy(state, 0);
+    const [second] = ownedBy(state, 1);
+
+    expect(first!.level).toBe(second!.level);
+  });
+
+  test('a node upgraded to the top still fits inside the board', () => {
+    const state = map(204);
+    const room = radiusForLevel(MAX_LEVEL);
+
+    for (const node of state.nodes) {
+      expect(node.x, `node ${node.id}`).toBeGreaterThanOrEqual(room);
+      expect(node.x).toBeLessThanOrEqual(CONFIG.width - room);
+      expect(node.y).toBeGreaterThanOrEqual(room);
+      expect(node.y).toBeLessThanOrEqual(CONFIG.height - room);
+    }
   });
 });
