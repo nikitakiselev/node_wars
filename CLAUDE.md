@@ -125,7 +125,10 @@ play itself from the first minute. Bots do not use wires; they have the same
 logistics built in, so wires only close the clicking gap.
 
 Growth clamps at capacity, so there is never a literal overflow to forward —
-"send on overflow" is realised as "at capacity, send half".
+"send on overflow" is realised as "at capacity, send half of what it holds".
+Half of what it *holds*, not everything above a fixed garrison: a node sitting
+on a stockpile has to stay worth attacking rather than becoming a free capture
+the moment it forwards.
 
 ## Winning and losing
 

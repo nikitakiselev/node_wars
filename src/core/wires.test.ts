@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { makeNode, makeState } from './fixtures';
 import { applyLevel } from './levels';
 import { NEUTRAL, type GameState } from './state';
-import { WIRE_KEEP_SHARE, clearWire, flushWires, setWire, wireFrom } from './wires';
+import { WIRE_SEND_FRACTION, clearWire, flushWires, setWire, wireFrom } from './wires';
 
 /** Two adjacent nodes owned by player 0, plus a spare that is not adjacent. */
 function board(): GameState {
@@ -92,33 +92,33 @@ describe('laying a wire', () => {
 });
 
 describe('what a wire carries', () => {
-  test('a node that has filled up sends everything above half its ceiling', () => {
+  test('a node that has filled up sends half of what it holds', () => {
     const state = board();
     setWire(state, 0, 0, 1);
     fill(state, 0);
-    const capacity = state.nodes[0]!.capacity;
+    const before = state.nodes[0]!.points;
 
     flushWires(state);
 
     expect(state.squads).toHaveLength(1);
     expect(state.squads[0]!.from).toBe(0);
     expect(state.squads[0]!.to).toBe(1);
-    expect(state.squads[0]!.amount).toBe(Math.floor(capacity * (1 - WIRE_KEEP_SHARE)));
-    expect(state.nodes[0]!.points).toBe(capacity * WIRE_KEEP_SHARE);
+    expect(state.squads[0]!.amount).toBe(Math.floor(before * WIRE_SEND_FRACTION));
   });
 
-  test('a node handed more than it can hold forwards the surplus in one go', () => {
-    // A node in the middle of a chain receives a shipment far over its cap.
-    // Dribbling it out over several steps would look like a queue of scraps.
+  test('a node with a stockpile keeps half of it, not half of its ceiling', () => {
+    // The whole point of holding back: a wired node has to be worth attacking
+    // rather than a free capture the moment it forwards.
     const state = board();
     setWire(state, 0, 0, 1);
     const node = state.nodes[0]!;
     node.points = node.capacity * 4;
+    const before = node.points;
 
     flushWires(state);
 
-    expect(state.squads).toHaveLength(1);
-    expect(state.nodes[0]!.points).toBe(node.capacity * WIRE_KEEP_SHARE);
+    expect(node.points).toBe(before / 2);
+    expect(node.points).toBeGreaterThan(node.capacity);
   });
 
   test('a node still filling up sends nothing', () => {
