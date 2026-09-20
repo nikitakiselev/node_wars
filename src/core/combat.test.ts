@@ -66,8 +66,8 @@ describe('resolveArrival', () => {
     expect(target.points).toBe(0);
   });
 
-  test('a fortress absorbs half of an attack', () => {
-    const target = node({ owner: 1, points: 20, kind: 'fortress' });
+  test('a finished fortress absorbs half of an attack', () => {
+    const target = node({ owner: 1, points: 20, kind: 'fortress', level: 5 });
 
     resolveArrival(target, squad({ owner: 0, amount: 30 }));
 
@@ -75,8 +75,20 @@ describe('resolveArrival', () => {
     expect(target.points).toBe(5);
   });
 
-  test('taking a fortress costs double, and the surplus is what is left of the halved force', () => {
-    const target = node({ owner: 1, points: 10, kind: 'fortress' });
+  test('a fortress only just begun is far less use', () => {
+    const fresh = node({ owner: 1, points: 20, kind: 'fortress', level: 1 });
+    const finished = node({ owner: 1, points: 20, kind: 'fortress', level: 5 });
+
+    resolveArrival(fresh, squad({ owner: 0, amount: 30 }));
+    resolveArrival(finished, squad({ owner: 0, amount: 30 }));
+
+    // The same attack takes the new one and bounces off the finished one.
+    expect(fresh.owner).toBe(0);
+    expect(finished.owner).toBe(1);
+  });
+
+  test('taking a finished fortress costs double, and the surplus is what survives the walls', () => {
+    const target = node({ owner: 1, points: 10, kind: 'fortress', level: 5 });
 
     resolveArrival(target, squad({ owner: 0, amount: 40 }));
 
@@ -86,7 +98,7 @@ describe('resolveArrival', () => {
 
   test('an attack that would take a plain node bounces off a fortress', () => {
     const plain = node({ owner: 1, points: 20, kind: 'base' });
-    const fortress = node({ owner: 1, points: 20, kind: 'fortress' });
+    const fortress = node({ owner: 1, points: 20, kind: 'fortress', level: 5 });
 
     resolveArrival(plain, squad({ owner: 0, amount: 25 }));
     resolveArrival(fortress, squad({ owner: 0, amount: 25 }));
@@ -96,7 +108,7 @@ describe('resolveArrival', () => {
   });
 
   test('a fortress defends just as well once you hold it', () => {
-    const mine = node({ owner: 0, points: 20, kind: 'fortress' });
+    const mine = node({ owner: 0, points: 20, kind: 'fortress', level: 5 });
 
     resolveArrival(mine, squad({ owner: 1, amount: 30 }));
 
@@ -105,7 +117,7 @@ describe('resolveArrival', () => {
   });
 
   test('reinforcing your own fortress is not halved', () => {
-    const mine = node({ owner: 0, points: 10, kind: 'fortress' });
+    const mine = node({ owner: 0, points: 10, kind: 'fortress', level: 5 });
 
     resolveArrival(mine, squad({ owner: 0, amount: 12 }));
 

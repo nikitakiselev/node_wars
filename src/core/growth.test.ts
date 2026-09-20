@@ -50,13 +50,31 @@ describe('applyGrowth', () => {
     expect(n.points).toBe(50);
   });
 
-  test('a farm grows twice as fast as a plain node', () => {
-    const plain = node({ points: 0, kind: 'base' });
-    const farm = node({ points: 0, kind: 'farm' });
+  test('a farm out-earns a plain node of the same level', () => {
+    const plain = node({ points: 0, kind: 'base', level: 1, capacity: 1000 });
+    const farm = node({ points: 0, kind: 'farm', level: 1, capacity: 1000 });
 
     applyGrowth([plain, farm], 3);
 
-    expect(farm.points).toBeCloseTo(plain.points * 2);
+    expect(farm.points).toBeGreaterThan(plain.points);
+  });
+
+  test('a farm earns more the further it is built up', () => {
+    const young = node({ points: 0, kind: 'farm', level: 1, capacity: 1000 });
+    const finished = node({ points: 0, kind: 'farm', level: 5, capacity: 1000 });
+
+    applyGrowth([young, finished], 10);
+
+    expect(finished.points).toBeGreaterThan(young.points);
+  });
+
+  test('a finished farm earns two and a half times a plain node', () => {
+    const plain = node({ points: 0, kind: 'base', capacity: 1000 });
+    const farm = node({ points: 0, kind: 'farm', level: 5, capacity: 1000 });
+
+    applyGrowth([plain, farm], 4);
+
+    expect(farm.points).toBeCloseTo(plain.points * 2.5);
   });
 
   test('a farm fills faster but holds no more', () => {

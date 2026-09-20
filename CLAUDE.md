@@ -67,14 +67,21 @@ Upgrades measurably made matches more decisive, not less — 8/10 settled versus
 ## Node kinds
 
 `NodeKind` is `base | fortress | farm`, rolled independently of size and never
-given to a starting node. A fortress halves incoming *hostile* force
-(`effectiveAttack` in `combat.ts`), so taking it costs double; reinforcing your
-own is not halved. A farm doubles growth rate (`growthRateOf` in `growth.ts`)
-but not capacity, which keeps node size an honest read of the cap.
+given to a starting node. A fortress turns away part of an incoming *hostile* force
+(`effectiveAttack` in `combat.ts`); reinforcing your own is never reduced. A
+farm earns faster (`growthRateOf` in `growth.ts`) but holds no more, which
+keeps node size an honest read of the cap.
 
-Adding a kind touches five places: `KIND_WEIGHTS` (mapgen), `growthRateOf`
-and/or `effectiveAttack`, `KIND_WORTH` (ai), `drawKindMark` (renderer) and the
-legend in `index.html`. Kinds are shown by silhouette, never by colour — colour
+Both bonuses scale with level and live in one table, `BY_LEVEL` in
+`core/kinds.ts`: defence 1.2× to 2×, growth 1.4× to 2.5×, and 1× at every
+level for a plain node. Only a finished fortress costs double to take. Read
+them through `defenceMultiplier` / `growthMultiplier` rather than hardcoding a
+constant anywhere.
+
+Adding a kind touches four places: `KIND_WEIGHTS` (mapgen), a row in
+`BY_LEVEL` (`core/kinds.ts`), `drawKindMark` (renderer) and the legend in
+`index.html`. The bot values a node from those multipliers, so it needs no
+separate table. Kinds are shown by silhouette, never by colour — colour
 already means ownership.
 
 ## Bot tuning that is load-bearing

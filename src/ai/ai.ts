@@ -1,16 +1,10 @@
-import { FORTRESS_DEFENCE } from '../core/combat';
 import { growthRateOf } from '../core/growth';
+import { defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { upgradeCost } from '../core/levels';
 import { SQUAD_SPEED, sendSquad } from '../core/orders';
 import { upgradeNode } from '../core/upgrade';
 import type { Rng } from '../core/rng';
-import {
-  NEUTRAL,
-  type GameNode,
-  type GameState,
-  type NodeKind,
-  type OwnerId,
-} from '../core/state';
+import { NEUTRAL, type GameNode, type GameState, type OwnerId } from '../core/state';
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
@@ -65,18 +59,23 @@ export const DIFFICULTIES: Record<Difficulty, AiConfig> = {
  */
 const ALL_IN_PENALTY = 0.35;
 
+/** A fortress is cheap to hold once taken, which is worth a premium of its own. */
+const FORTRESS_PREMIUM = 0.4;
+
 /**
  * What a node is worth beyond its capacity.
  *
- * A farm earns twice as much, so it is worth twice as much. A fortress earns
- * nothing extra but is cheap to hold once taken, which carries a premium —
- * though not one that outweighs costing double to crack.
+ * A farm that earns half as much again is worth half as much again, so its
+ * worth follows its actual rate rather than a flat constant. A fortress earns
+ * nothing extra, but the thicker its walls the less it will cost to keep.
  */
-const KIND_WORTH: Record<NodeKind, number> = {
-  base: 1,
-  fortress: 1.4,
-  farm: 2,
-};
+function kindWorth(target: GameNode): number {
+  if (target.kind === 'farm') return growthMultiplier(target);
+  if (target.kind === 'fortress') {
+    return 1 + (defenceMultiplier(target) - 1) * FORTRESS_PREMIUM;
+  }
+  return 1;
+}
 
 export interface Ai {
   /** Advances the bot's own clock and issues an order when it is due. */
@@ -327,9 +326,9 @@ function evaluate(
   // in parity, neither can ever get a fifth ahead of the other, and the match
   // deadlocks with both sides hoarding.
   const defence = target.points + reinforcements + 1 + config.safetyPoints;
-  // Walls are paid for in points sent, so the whole requirement doubles.
-  const wall = target.kind === 'fortress' ? FORTRESS_DEFENCE : 1;
-  const needed = Math.ceil(defence * wall) - inbound;
+  // Walls are paid for in points sent, so the whole requirement scales with
+  // however thick they have been built.
+  const needed = Math.ceil(defence * defenceMultiplier(target)) - inbound;
   if (needed < 1) return null;
 
   const affordable = Math.floor(source.points * config.commitment);
@@ -342,9 +341,7 @@ function evaluate(
   // spends and how long it is in the air. Taking ground from the human is
   // worth more than the same node sitting neutral.
   const worth =
-    target.capacity *
-    KIND_WORTH[target.kind] *
-    (target.owner === NEUTRAL ? 1 : config.aggression);
+    target.capacity * kindWorth(target) * (target.owner === NEUTRAL ? 1 : config.aggression);
   const score = (worth / (needed + flightSeconds * 10)) * (allIn ? ALL_IN_PENALTY : 1);
 
   return { from: source.id, to: target.id, fraction, score };

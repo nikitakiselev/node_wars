@@ -1,8 +1,10 @@
 import { Application } from 'pixi.js';
 import type { Difficulty } from '../ai/ai';
 import { formatPoints } from '../core/format';
+import { defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { MAX_LEVEL, upgradeCost } from '../core/levels';
 import { isEliminated } from '../core/simulation';
+import type { GameNode } from '../core/state';
 import { upgradeNode } from '../core/upgrade';
 import { standingsFor } from '../core/standings';
 import { PointerControls } from '../input/pointer';
@@ -258,10 +260,30 @@ function paintUpgradeControl(): void {
 
   const short = Math.ceil(cost - node.points);
   hud.upgradeButton.disabled = short > 0;
-  hud.upgradeNote.textContent =
-    short > 0
-      ? `Уровень ${node.level} → ${node.level + 1}: не хватает ${short}`
-      : `Уровень ${node.level} → ${node.level + 1} за ${cost}`;
+  const step = `Уровень ${node.level} → ${node.level + 1}`;
+  const price = short > 0 ? `не хватает ${formatPoints(short)}` : `за ${cost}`;
+  hud.upgradeNote.textContent = [step, price, bonusGained(node)]
+    .filter(Boolean)
+    .join(', ');
+}
+
+/**
+ * What the next level does for this node beyond the extra room.
+ *
+ * Capacity is visible in the node itself, but the difference between a
+ * third-level fortress and a fourth-level one is not, and it is the whole
+ * reason to build that kind up.
+ */
+function bonusGained(node: Pick<GameNode, 'kind' | 'level'>): string {
+  const next = { kind: node.kind, level: node.level + 1 };
+
+  if (node.kind === 'fortress') {
+    return `защита ${defenceMultiplier(node)}× → ${defenceMultiplier(next)}×`;
+  }
+  if (node.kind === 'farm') {
+    return `прирост ${growthMultiplier(node)}× → ${growthMultiplier(next)}×`;
+  }
+  return '';
 }
 
 /** Rebuilds the scoreboard, which has one seat per player in the match. */

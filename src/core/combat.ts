@@ -1,12 +1,16 @@
+import { defenceMultiplier } from './kinds';
 import { applyLevel } from './levels';
 import { NEUTRAL, type GameNode, type Squad } from './state';
 
-/** How much of an attack a fortress shrugs off. Half in, so double to take. */
-export const FORTRESS_DEFENCE = 2;
-
-/** How much of an arriving hostile force actually lands on a node. */
+/**
+ * How much of an arriving hostile force actually lands on a node.
+ *
+ * A fortress turns part of it away, and turns away more the further it has
+ * been built up — a finished one halves the attack, so it costs double to
+ * take.
+ */
 export function effectiveAttack(target: GameNode, amount: number): number {
-  return target.kind === 'fortress' ? amount / FORTRESS_DEFENCE : amount;
+  return amount / defenceMultiplier(target);
 }
 
 /**

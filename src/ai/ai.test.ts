@@ -209,7 +209,7 @@ describe('createAi', () => {
     const walled = makeState(
       [
         makeNode(0, { owner: AI_PLAYER, points: 60 }),
-        makeNode(1, { owner: 0, points: 25, kind: 'fortress' }),
+        makeNode(1, { owner: 0, points: 25, kind: 'fortress', level: 5 }),
       ],
       [[0, 1]],
     );
@@ -225,7 +225,7 @@ describe('createAi', () => {
     const state = makeState(
       [
         makeNode(0, { owner: AI_PLAYER, points: 150 }),
-        makeNode(1, { owner: 0, points: 25, kind: 'fortress' }),
+        makeNode(1, { owner: 0, points: 25, kind: 'fortress', level: 5 }),
       ],
       [[0, 1]],
     );

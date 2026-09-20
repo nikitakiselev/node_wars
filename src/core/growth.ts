@@ -1,16 +1,17 @@
+import { growthMultiplier } from './kinds';
 import { NEUTRAL, type GameNode } from './state';
 
 /** Points per second added to every owned node below its capacity. */
 export const GROWTH_PER_SECOND = 1;
 
-/** How much faster a farm fills. Its capacity is untouched. */
-export const FARM_GROWTH_MULTIPLIER = 2;
-
-/** Points per second a node earns, given what kind of node it is. */
+/**
+ * Points per second a node earns.
+ *
+ * A farm earns more, and more again as it is built up; every other kind earns
+ * the flat rate at every level.
+ */
 export function growthRateOf(node: GameNode): number {
-  return node.kind === 'farm'
-    ? GROWTH_PER_SECOND * FARM_GROWTH_MULTIPLIER
-    : GROWTH_PER_SECOND;
+  return GROWTH_PER_SECOND * growthMultiplier(node);
 }
 
 /**
