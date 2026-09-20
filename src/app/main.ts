@@ -53,6 +53,8 @@ let match = new Match(settings);
 let seats: { bar: HTMLElement; nodes: HTMLElement; points: HTMLElement }[] = [];
 /** The match to return to if the setup dialog is dismissed without starting. */
 let resumed: Match = match;
+/** Until the first match is started there is nothing to dismiss the dialog to. */
+let started = false;
 
 const controls = new PointerControls(
   { canvas: app.canvas, toWorld: (x, y) => renderer.toWorld(x, y) },
@@ -115,10 +117,21 @@ setupForm.addEventListener('change', () => {
   showMatch(new Match(settingsFromForm(match.settings.seed)));
 });
 
+// Escape closes a <dialog> by default. On the very first visit that would
+// drop the player into a match they never started, so it is refused until
+// one has been.
+dialog.addEventListener('cancel', (event) => {
+  if (!started) event.preventDefault();
+});
+
 dialog.addEventListener('close', () => {
   // Dismissing the dialog puts the match that was running back on screen; the
   // preview was only ever a preview.
-  if (dialog.returnValue !== 'start') showMatch(resumed);
+  if (dialog.returnValue !== 'start') {
+    showMatch(resumed);
+  } else {
+    started = true;
+  }
   settings = match.settings;
   app.ticker.start();
 });
