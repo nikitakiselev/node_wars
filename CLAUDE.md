@@ -115,6 +115,11 @@ tell a human they are out while bots fight on among themselves.
 
 ## Rendering pitfalls
 
+- **Point totals are written with `formatPoints`** (`core/format.ts`), which
+  truncates to `1.2K` / `12K` / `2.5M`. Garrisons reach the thousands once
+  nodes are built up, and four digits do not fit inside a circle. It truncates
+  rather than rounds so a node never claims points it does not have.
+
 - **Pixi keeps one current point across path calls.** Batching `moveTo`/`lineTo`
   pairs and stroking once chains every node to the last, and an `arc` without a
   preceding `moveTo` draws a leader line into it. Stroke each segment

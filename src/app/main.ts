@@ -1,5 +1,6 @@
 import { Application } from 'pixi.js';
 import type { Difficulty } from '../ai/ai';
+import { formatPoints } from '../core/format';
 import { MAX_LEVEL, upgradeCost } from '../core/levels';
 import { isEliminated } from '../core/simulation';
 import { upgradeNode } from '../core/upgrade';
@@ -304,7 +305,7 @@ function paintHud(): void {
     const standing = standingsFor(match.state, player);
     seat.bar.style.width = `${standing.share * 100}%`;
     seat.nodes.textContent = String(standing.nodes);
-    seat.points.textContent = String(Math.round(standing.points));
+    seat.points.textContent = formatPoints(standing.points);
   });
 
   const verdict = verdictFor();

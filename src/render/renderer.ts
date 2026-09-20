@@ -7,6 +7,7 @@ import {
   Sprite,
   Text,
 } from 'pixi.js';
+import { formatPoints } from '../core/format';
 import { MAX_LEVEL } from '../core/levels';
 import { NEUTRAL, type GameNode, type GameState, type Squad } from '../core/state';
 import { COLORS, FONT_FAMILY, factionOf } from './theme';
@@ -290,7 +291,7 @@ export class GameRenderer {
         view.label.style.fontSize = Math.round(node.radius * 0.95);
       }
 
-      const text = String(Math.floor(node.points));
+      const text = formatPoints(node.points);
       if (text !== view.lastLabel) {
         view.label.text = text;
         view.lastLabel = text;
