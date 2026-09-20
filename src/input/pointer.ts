@@ -1,10 +1,8 @@
 import { nodeAtPoint } from '../core/geometry';
+import { fractionFor } from './fractions';
 import { sendSquad } from '../core/orders';
 import type { GameState, OwnerId } from '../core/state';
 import type { DragHint } from '../render/renderer';
-
-/** Share of a node's garrison sent by a plain drag, and by the modifiers. */
-const FRACTIONS = { plain: 0.5, everything: 1, probe: 0.25 } as const;
 
 interface Surface {
   canvas: HTMLCanvasElement;
@@ -14,9 +12,9 @@ interface Surface {
 /**
  * Turns pointer gestures into orders.
  *
- * Dragging from one of your nodes to a neighbour attacks it. Shift commits the
- * whole garrison, Alt sends a quarter. Releasing anywhere else cancels, so a
- * misdrag costs nothing.
+ * Dragging from one of your nodes to a neighbour attacks it with everything it
+ * has; Shift keeps half back, Alt sends only a quarter. Releasing anywhere
+ * else cancels, so a misdrag costs nothing.
  */
 export class PointerControls {
   private from: number | null = null;
@@ -96,12 +94,6 @@ export class PointerControls {
     this.cursor = null;
     this.targets = new Set();
   }
-}
-
-function fractionFor(event: PointerEvent): number {
-  if (event.shiftKey) return FRACTIONS.everything;
-  if (event.altKey) return FRACTIONS.probe;
-  return FRACTIONS.plain;
 }
 
 function preventDefault(event: Event): void {
