@@ -165,13 +165,16 @@ export class GameRenderer {
 
       // A fortress is a different silhouette, not just a different colour:
       // shape survives at the edge of vision where a tint does not.
-      const disc = new Sprite(
-        node.kind === 'fortress' ? this.brushes.bastion : this.brushes.disc,
-      );
+      const fortified = node.kind === 'fortress';
+      const disc = new Sprite(fortified ? this.brushes.bastion : this.brushes.disc);
       disc.anchor.set(0.5);
       disc.position.set(node.x, node.y);
-      disc.width = node.radius * 2;
-      disc.height = node.radius * 2;
+      // The bastion is drawn oversized so its corners clear the round fill
+      // gauge. At the same radius the gauge traces its vertices and the whole
+      // thing reads as an ordinary circle.
+      const bodySize = node.radius * 2 * (fortified ? BASTION_BODY : 1);
+      disc.width = bodySize;
+      disc.height = bodySize;
       this.discLayer.addChild(disc);
 
       const ring = new Graphics();
@@ -301,9 +304,10 @@ export class GameRenderer {
   /** The badge that says what kind of node this is: armour, or sun rays. */
   private drawKindMark(ring: Graphics, node: GameNode, colour: number): void {
     if (node.kind === 'fortress') {
-      ring
-        .circle(node.x, node.y, node.radius * 1.24)
-        .stroke({ width: 2, color: colour, alpha: 0.45 });
+      // An angular outline outside the round gauge: corners are the one thing
+      // that cannot be mistaken for another circle.
+      hexagonPath(ring, node.x, node.y, node.radius * BASTION_WALL);
+      ring.stroke({ width: 2.5, color: colour, alpha: 0.85 });
       return;
     }
 
@@ -486,6 +490,23 @@ export class GameRenderer {
     this.effectLayer.addChild(sprite);
     this.flashes.push({ sprite, baseSize, age: 0 });
   }
+}
+
+/** Corners of a fortress body, as a share of the node radius. */
+const BASTION_BODY = 1.14;
+/** Where the fortress wall sits, as a share of the node radius. */
+const BASTION_WALL = 1.34;
+
+/** Traces a flat-topped hexagon; the caller strokes or fills it. */
+function hexagonPath(graphics: Graphics, x: number, y: number, radius: number): void {
+  for (let corner = 0; corner < 6; corner++) {
+    const angle = (corner * Math.PI) / 3;
+    const px = x + Math.cos(angle) * radius;
+    const py = y + Math.sin(angle) * radius;
+    if (corner === 0) graphics.moveTo(px, py);
+    else graphics.lineTo(px, py);
+  }
+  graphics.closePath();
 }
 
 /** How long the opening beacon stays up, in simulated seconds. */
