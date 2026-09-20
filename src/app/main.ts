@@ -144,6 +144,7 @@ for (const button of document.querySelectorAll('[data-open-settings]')) {
 function showMatch(next: Match): void {
   match = next;
   renderer.build(match.state);
+  renderer.markHome(match.state.nodes.find((node) => node.owner === HUMAN)?.id ?? null);
   buildScoreboard(match.settings.aiCount + 1);
   hud.seed.textContent = `Карта ${match.settings.seed}`;
   hud.verdict.hidden = match.state.winner === null;

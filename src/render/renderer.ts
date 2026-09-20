@@ -66,6 +66,7 @@ export class GameRenderer {
   private readonly glowLayer = new Container();
   private readonly discLayer = new Container();
   private readonly ringLayer = new Container();
+  private readonly beaconLayer = new Graphics();
   private readonly motes: ParticleContainer;
   private readonly effectLayer = new Container();
   private readonly labelLayer = new Container();
@@ -76,6 +77,7 @@ export class GameRenderer {
   private readonly pool: Particle[] = [];
   private readonly flashes: Flash[] = [];
   private lastOwners: number[] = [];
+  private homeNode: number | null = null;
 
   constructor(
     private readonly app: Application,
@@ -87,6 +89,7 @@ export class GameRenderer {
       dynamicProperties: { position: true, color: true, scale: true },
     });
     this.motes.blendMode = 'add';
+    this.beaconLayer.blendMode = 'add';
 
     this.world.addChild(
       this.edgeLayer,
@@ -94,6 +97,7 @@ export class GameRenderer {
       this.glowLayer,
       this.discLayer,
       this.ringLayer,
+      this.beaconLayer,
       this.motes,
       this.effectLayer,
       this.labelLayer,
@@ -195,6 +199,16 @@ export class GameRenderer {
   }
 
   /**
+   * Marks the node the player opens on.
+   *
+   * On a board of fifty circles, your own is one more circle. The beacon says
+   * where you are, then gets out of the way.
+   */
+  markHome(nodeId: number | null): void {
+    this.homeNode = nodeId;
+  }
+
+  /**
    * @param alpha how far the clock sits into the next simulation step, 0..1.
    * @param stepSeconds the simulation's fixed step, used to predict motion.
    */
@@ -204,6 +218,7 @@ export class GameRenderer {
     this.drawRings(state);
     this.drawStreams(state, alpha, stepSeconds, time);
     this.drawLiveEdges(state, drag);
+    this.drawBeacon(state, time);
     this.advanceFlashes(state, stepSeconds * alpha);
   }
 
@@ -381,6 +396,32 @@ export class GameRenderer {
     }
   }
 
+  /**
+   * Rings pushing out from the player's opening node for the first seconds of
+   * a match, then gone. Driven by simulated time, so it holds still as a
+   * target marker while the board is paused behind the setup dialog.
+   */
+  private drawBeacon(state: GameState, time: number): void {
+    this.beaconLayer.clear();
+    if (this.homeNode === null || time >= BEACON_SECONDS) return;
+
+    const node = state.nodes[this.homeNode];
+    if (!node) return;
+
+    const colour = factionOf(node.owner).glow;
+    const fade = 1 - time / BEACON_SECONDS;
+
+    for (let ring = 0; ring < BEACON_RINGS; ring++) {
+      const phase = ((time / BEACON_PERIOD) + ring / BEACON_RINGS) % 1;
+      const alpha = (1 - phase) * 0.6 * fade;
+      if (alpha <= 0.01) continue;
+
+      this.beaconLayer
+        .circle(node.x, node.y, node.radius * (1.25 + phase * 3))
+        .stroke({ width: 1 + 3 * (1 - phase), color: colour, alpha });
+    }
+  }
+
   private advanceFlashes(state: GameState, dt: number): void {
     state.nodes.forEach((node, index) => {
       if (this.lastOwners[index] === node.owner) return;
@@ -415,6 +456,12 @@ export class GameRenderer {
     this.flashes.push({ sprite, baseSize, age: 0 });
   }
 }
+
+/** How long the opening beacon stays up, in simulated seconds. */
+const BEACON_SECONDS = 7;
+/** Seconds for one ring to travel from the node to its widest. */
+const BEACON_PERIOD = 1.6;
+const BEACON_RINGS = 3;
 
 /** How far behind the head the tail of a stream trails, in edge fractions. */
 const MOTE_TRAIL = 0.22;
