@@ -175,7 +175,20 @@ something else. Its tests assert exactly that, plus that it stays short.
 
 ## Map generation
 
-Poisson-disk points, Delaunay triangulation, then random thinning that removes
+Boards are islands joined by bridges (`core/islands.ts`). Each island is grown
+around its own centre — partitioning an even scatter afterwards gives islands
+only the edge list can see. A crossing is a separate fortress node standing in
+the water: fortifying both shores instead makes a wall facing a wall that
+neither side can attack into, measured at 1 settled match in 10 against 7 with
+bridges. Every edge joins two nodes of one island or an island to a bridge.
+
+Map size changes the size of the world, not the spacing of nodes; packing nodes
+closer on a fixed board buys extra nodes by taking away the water. A bridge is
+placed only where it clears every other node by a full step, or it draws over
+what it joins.
+
+Within an island: Poisson-disk points, Delaunay triangulation, then random
+thinning that removes
 the longest edges first and never breaks connectivity. Delaunay is what keeps
 the graph planar — **edges must never cross**, or players cannot read who is
 connected to whom.

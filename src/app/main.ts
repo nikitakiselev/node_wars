@@ -237,6 +237,7 @@ for (const button of document.querySelectorAll('[data-open-settings]')) {
 /** Puts a match on screen and paints one frame of it. */
 function showMatch(next: Match): void {
   match = next;
+  renderer.setWorld(match.world.width, match.world.height);
   renderer.build(match.state);
   renderer.markHome(match.state.nodes.find((node) => node.owner === HUMAN)?.id ?? null);
   buildScoreboard(match.settings.aiCount + 1);

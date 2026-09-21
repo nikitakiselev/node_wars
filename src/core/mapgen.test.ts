@@ -3,9 +3,11 @@ import { NEUTRAL, type GameState } from './state';
 import { isConnected } from './graph';
 import { START_POINTS, generateMap, neighbourhoodCapacity } from './mapgen';
 import { MAX_PLAYERS, factionOf } from '../render/theme';
+import { BRIDGE } from './islands';
 import { MAX_LEVEL, capacityForLevel, radiusForLevel } from './levels';
 
-const CONFIG = { width: 1200, height: 800, minDistance: 90, keepRatio: 0.55 };
+// A board the size the game actually plays on, at the spacing it uses.
+const CONFIG = { width: 1600, height: 1000, minDistance: 85, keepRatio: 0.55 };
 
 function map(seed: number): GameState {
   return generateMap({ ...CONFIG, seed });
@@ -27,8 +29,8 @@ describe('generateMap', () => {
   test('produces a playable number of nodes', () => {
     const state = map(11);
 
-    expect(state.nodes.length).toBeGreaterThanOrEqual(30);
-    expect(state.nodes.length).toBeLessThanOrEqual(80);
+    expect(state.nodes.length).toBeGreaterThanOrEqual(25);
+    expect(state.nodes.length).toBeLessThanOrEqual(90);
   });
 
   test('node ids match their position in the array', () => {
@@ -78,7 +80,9 @@ describe('generateMap', () => {
       const b = ownedBy(state, 1)[0]!;
       const diagonal = Math.hypot(CONFIG.width, CONFIG.height);
 
-      expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(diagonal * 0.5);
+      // Seats go on different islands, which bounds how far apart they can be
+      // put: the furthest pair of islands is not the furthest pair of nodes.
+      expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(diagonal * 0.3);
     }
   });
 
@@ -196,7 +200,7 @@ describe('more than two players', () => {
       for (let j = i + 1; j < starts.length; j++) {
         const a = starts[i]!;
         const b = starts[j]!;
-        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(diagonal * 0.25);
+        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(diagonal * 0.15);
       }
     }
   });
@@ -244,11 +248,20 @@ describe('map difficulty', () => {
 });
 
 describe('map size', () => {
-  test('wider spacing makes a smaller board', () => {
-    const roomy = generateMap({ ...CONFIG, seed: 70, minDistance: 190 });
-    const packed = generateMap({ ...CONFIG, seed: 70, minDistance: 110 });
+  test('a bigger board holds more of everything', () => {
+    const small = generateMap({ ...CONFIG, seed: 70, width: 1150, height: 760 });
+    const large = generateMap({ ...CONFIG, seed: 70, width: 2150, height: 1340 });
 
-    expect(roomy.nodes.length).toBeLessThan(packed.nodes.length);
+    expect(small.nodes.length).toBeLessThan(large.nodes.length);
+    expect(new Set(small.islands).size).toBeLessThan(new Set(large.islands).size);
+  });
+
+  test('a spacing too wide for islands still produces a board', () => {
+    // Rather than failing, generation packs the nodes closer and tries again.
+    const state = generateMap({ ...CONFIG, seed: 71, minDistance: 320 });
+
+    expect(state.nodes.length).toBeGreaterThan(8);
+    expect(new Set(state.islands).size).toBeGreaterThan(1);
   });
 });
 
@@ -266,11 +279,12 @@ describe('node kinds', () => {
     }
   });
 
-  test('plain nodes are still the common case', () => {
+  test('plain ground is still the most common kind', () => {
     const kinds = kindsOn(83);
-    const plain = kinds.filter((kind) => kind === 'base').length;
+    const count = (kind: string) => kinds.filter((value) => value === kind).length;
 
-    expect(plain / kinds.length).toBeGreaterThan(0.5);
+    expect(count('base')).toBeGreaterThan(count('fortress'));
+    expect(count('base')).toBeGreaterThan(count('farm'));
   });
 
   test('both players open on a plain node, so neither starts with terrain', () => {
@@ -331,6 +345,112 @@ describe('starting levels', () => {
       expect(node.x).toBeLessThanOrEqual(CONFIG.width - room);
       expect(node.y).toBeGreaterThanOrEqual(room);
       expect(node.y).toBeLessThanOrEqual(CONFIG.height - room);
+    }
+  });
+});
+
+describe('islands', () => {
+  function island(seed: number) {
+    return generateMap({ ...CONFIG, seed });
+  }
+
+  /** Islands proper; a bridge belongs to none of them. */
+  function islandsOn(state: GameState) {
+    const seen = new Set(state.islands);
+    seen.delete(BRIDGE);
+    return seen;
+  }
+
+  test('the board is divided into islands of roughly the size asked for', () => {
+    const state = island(300);
+    const count = islandsOn(state).size;
+
+    expect(count).toBeGreaterThan(1);
+    expect(state.nodes.length / count).toBeGreaterThan(4);
+    expect(state.nodes.length / count).toBeLessThan(18);
+  });
+
+  test('every node belongs to an island', () => {
+    const state = island(301);
+
+    expect(state.islands).toHaveLength(state.nodes.length);
+  });
+
+  test('the only way between islands is over a bridge, and every bridge is a fortress', () => {
+    for (let seed = 302; seed < 310; seed++) {
+      const state = island(seed);
+
+      for (const edge of state.edges) {
+        const from = state.islands[edge.a]!;
+        const to = state.islands[edge.b]!;
+        if (from === to) continue;
+
+        const bridge = from === BRIDGE ? edge.a : edge.b;
+        expect(from === BRIDGE || to === BRIDGE, `seed ${seed}: islands touch`).toBe(true);
+        expect(state.nodes[bridge]!.kind, `seed ${seed}, bridge ${bridge}`).toBe('fortress');
+      }
+    }
+  });
+
+  test('no island is a dead end', () => {
+    for (let seed = 310; seed < 318; seed++) {
+      const state = island(seed);
+      const ways = new Map<number, number>();
+
+      for (const edge of state.edges) {
+        const from = state.islands[edge.a]!;
+        const to = state.islands[edge.b]!;
+        if (from === to) continue;
+        const shore = from === BRIDGE ? to : from;
+        ways.set(shore, (ways.get(shore) ?? 0) + 1);
+      }
+
+      for (const which of islandsOn(state)) {
+        expect(ways.get(which) ?? 0, `seed ${seed}, island ${which}`).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
+  test('every island has at least one farm to be worth taking', () => {
+    for (let seed = 320; seed < 328; seed++) {
+      const state = island(seed);
+
+      for (const which of islandsOn(state)) {
+        const farms = state.nodes.filter(
+          (n) => state.islands[n.id] === which && n.kind === 'farm',
+        );
+        expect(farms.length, `seed ${seed}, island ${which}`).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+
+  test('a farm stands on an island, never on a bridge', () => {
+    const state = island(329);
+
+    for (const node of state.nodes) {
+      if (node.kind !== 'farm') continue;
+      expect(state.islands[node.id], `node ${node.id}`).not.toBe(BRIDGE);
+    }
+  });
+
+  test('an island is mostly its own ground, not crossings', () => {
+    const state = island(331);
+    const bridges = state.islands.filter((island) => island === BRIDGE).length;
+
+    expect(bridges / state.nodes.length).toBeLessThan(0.3);
+  });
+
+  test('players start inside islands, not on the gates, and not together', () => {
+    for (let seed = 330; seed < 340; seed++) {
+      const state = island(seed);
+      const starts = [0, 1].map((player) => state.nodes.find((n) => n.owner === player)!);
+
+      for (const start of starts) {
+        expect(start.kind, `seed ${seed}`).toBe('base');
+      }
+      expect(state.islands[starts[0]!.id], `seed ${seed}`).not.toBe(
+        state.islands[starts[1]!.id],
+      );
     }
   });
 });

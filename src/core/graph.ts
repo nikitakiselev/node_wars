@@ -64,7 +64,8 @@ export function buildGraph(points: readonly Point[], rng: Rng, keepRatio: number
   return [...kept];
 }
 
-function delaunayEdges(points: readonly Point[]): GraphEdge[] {
+/** Every edge of the Delaunay triangulation, each one once. */
+export function delaunayEdges(points: readonly Point[]): GraphEdge[] {
   const coords = points.flatMap((p) => [p.x, p.y]);
   const { triangles } = new Delaunator(Float64Array.from(coords));
 

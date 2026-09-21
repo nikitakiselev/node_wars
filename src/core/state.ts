@@ -59,6 +59,11 @@ export interface GameState {
   /** adjacency[nodeId] lists the ids reachable in one hop. */
   adjacency: number[][];
   /**
+   * islands[nodeId] is the region of the board a node belongs to. Islands meet
+   * only through gateway nodes, which is where the fortresses are.
+   */
+  islands: number[];
+  /**
    * wires[nodeId] is the neighbour that node automatically feeds once it
    * fills up, if any. At most one per node.
    */

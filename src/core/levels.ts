@@ -6,14 +6,14 @@ import type { GameNode } from './state';
  * Capacity is the ceiling the node produces up to; above it the node keeps
  * whatever reinforcements it is given but stops earning. Radius is how big it
  * is drawn, and it grows far more slowly than capacity — the densest board
- * puts nodes 108 units apart, so a top-level node still has room around it.
+ * packs nodes 88 units apart, so even two finished neighbours keep a gap.
  */
 const LEVELS = [
   { capacity: 25, radius: 16 },
   { capacity: 50, radius: 23 },
-  { capacity: 90, radius: 31 },
-  { capacity: 150, radius: 38 },
-  { capacity: 240, radius: 44 },
+  { capacity: 90, radius: 30 },
+  { capacity: 150, radius: 36 },
+  { capacity: 240, radius: 41 },
 ] as const;
 
 export const MAX_LEVEL = LEVELS.length;

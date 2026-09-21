@@ -1,8 +1,9 @@
-import { buildGraph, type GraphEdge } from './graph';
+import type { GraphEdge } from './graph';
+import { BRIDGE, buildIslandLayout, scatterIslands } from './islands';
 import { MAX_LEVEL, applyLevel, capacityForLevel, radiusForLevel } from './levels';
-import { poissonDiskSample, type Point } from './poisson';
+import type { Point } from './poisson';
 import { createRng, type Rng } from './rng';
-import { NEUTRAL, type Edge, type GameNode, type GameState, type NodeKind } from './state';
+import { NEUTRAL, type Edge, type GameNode, type GameState } from './state';
 
 /** Points both players open with, identical so neither starts ahead. */
 export const START_POINTS = 25;
@@ -27,18 +28,15 @@ const START_LEVEL = 2;
  */
 const LARGEST_RADIUS = radiusForLevel(MAX_LEVEL);
 
-/**
- * How often each kind turns up. Rolled independently of size, so a small
- * fortress and a sprawling farm are both ordinary sights.
- */
-const KIND_WEIGHTS: { kind: NodeKind; weight: number }[] = [
-  { kind: 'base', weight: 70 },
-  { kind: 'fortress', weight: 15 },
-  { kind: 'farm', weight: 15 },
-];
+/** One farm per this many interior nodes, so every island earns something. */
+const NODES_PER_FARM = 5;
+const MAX_FARMS_PER_ISLAND = 3;
 
 /** Default share of its capacity an unclaimed node defends with. */
 export const DEFAULT_NEUTRAL_GARRISON = 0.35;
+
+/** Below this the retry gives up rather than packing nodes on top of nodes. */
+const MIN_WORKABLE_DISTANCE = 60;
 
 /** Rejection sampling: how many maps to try before taking the fairest one. */
 const BALANCE_ATTEMPTS = 40;
@@ -85,26 +83,37 @@ export function generateMap(config: MapConfig): GameState {
     if (!best || balance > best.balance) best = { state, balance };
   }
 
-  if (!best) throw new Error('map generation produced no usable layout');
-  return best.state;
+  if (best) return best.state;
+
+  // A board can be too sparse for islands to fit with water between them —
+  // a wide spacing on a small map leaves no room. Rather than fail, pack the
+  // nodes closer and try again; a crowded map beats no map.
+  if (config.minDistance > MIN_WORKABLE_DISTANCE) {
+    return generateMap({ ...config, minDistance: config.minDistance * 0.8 });
+  }
+
+  throw new Error('map generation produced no usable layout');
 }
 
 function drawMap(config: MapConfig, rng: Rng, crowding = 1): GameState | null {
   const playerCount = config.playerCount ?? 2;
   const margin = LARGEST_RADIUS + 4;
-  const points = poissonDiskSample(
+  const { points, islands } = scatterIslands(
     config.width - margin * 2,
     config.height - margin * 2,
     config.minDistance,
     rng,
-  ).map((p) => ({ x: p.x + margin, y: p.y + margin }));
+  );
+  const placed = points.map((point) => ({ x: point.x + margin, y: point.y + margin }));
 
-  if (points.length < 12) return null;
+  if (placed.length < 12) return null;
 
-  const graphEdges = buildGraph(points, rng, config.keepRatio);
+  const layout = buildIslandLayout(placed, islands, rng, config.keepRatio, config.minDistance);
+
   const garrison = config.neutralGarrison ?? DEFAULT_NEUTRAL_GARRISON;
-  const nodes = points.map((point, id) => makeNode(id, point, rng, garrison));
-  const state = assemble(nodes, points, graphEdges);
+  const nodes = layout.points.map((point, id) => makeNode(id, point, rng, garrison));
+  const state = assemble(nodes, layout.points, layout.edges, layout.islands);
+  placeKinds(state, layout.bridges, rng);
 
   const starts = pickStarts(state, config, playerCount, crowding);
   if (!starts) return null;
@@ -132,7 +141,7 @@ function makeNode(id: number, point: Point, rng: Rng, garrison: number): GameNod
     level,
     radius: radiusForLevel(level),
     capacity,
-    kind: weightedKind(rng),
+    kind: 'base',
     owner: NEUTRAL,
     points: Math.min(capacity, Math.max(1, Math.round(capacity * garrison))),
   };
@@ -148,17 +157,40 @@ function weightedStartLevel(rng: Rng): number {
   return 1;
 }
 
-function weightedKind(rng: Rng): NodeKind {
-  const total = KIND_WEIGHTS.reduce((sum, entry) => sum + entry.weight, 0);
-  let roll = rng.float(0, total);
-  for (const entry of KIND_WEIGHTS) {
-    roll -= entry.weight;
-    if (roll <= 0) return entry.kind;
+/**
+ * Puts the terrain where the shape of the board says it belongs.
+ *
+ * Every bridge is a fortress: the crossing between two islands should be a
+ * place you have to take, not a place you walk through. Farms go inside
+ * islands, so an island is worth holding and not merely worth passing.
+ */
+function placeKinds(state: GameState, bridges: readonly number[], rng: Rng): void {
+  for (const id of bridges) state.nodes[id]!.kind = 'fortress';
+
+  for (const island of new Set(state.islands)) {
+    if (island === BRIDGE) continue;
+
+    const interior = state.nodes.filter((node) => state.islands[node.id] === island);
+    if (interior.length === 0) continue;
+
+    const wanted = Math.min(
+      MAX_FARMS_PER_ISLAND,
+      Math.max(1, Math.round(interior.length / NODES_PER_FARM)),
+    );
+    for (let placed = 0; placed < wanted; placed++) {
+      const choices = interior.filter((node) => node.kind === 'base');
+      if (choices.length === 0) break;
+      choices[rng.range(0, choices.length - 1)]!.kind = 'farm';
+    }
   }
-  return 'base';
 }
 
-function assemble(nodes: GameNode[], points: Point[], graphEdges: GraphEdge[]): GameState {
+function assemble(
+  nodes: GameNode[],
+  points: Point[],
+  graphEdges: GraphEdge[],
+  islands: number[],
+): GameState {
   const adjacency: number[][] = nodes.map(() => []);
   const edges: Edge[] = graphEdges.map(({ a, b }) => {
     adjacency[a]!.push(b);
@@ -172,6 +204,7 @@ function assemble(nodes: GameNode[], points: Point[], graphEdges: GraphEdge[]): 
     nodes,
     edges,
     adjacency,
+    islands,
     wires: nodes.map(() => undefined),
     squads: [],
     time: 0,
@@ -207,8 +240,12 @@ function pickStarts(
     let bestId: number | null = null;
     let bestDistance = -1;
 
+    const taken = new Set(chosen.map((id) => state.islands[id]));
     for (const id of viable) {
       if (chosen.includes(id)) continue;
+      // One seat per island while there are islands to spare: players should
+      // not open the match already sharing a neighbourhood.
+      if (taken.has(state.islands[id]) && taken.size < islandCount(state)) continue;
       const nearest = Math.min(...chosen.map((other) => distanceBetween(state, id, other)));
       if (nearest > bestDistance) {
         bestDistance = nearest;
@@ -231,12 +268,20 @@ function pickStarts(
   return chosen;
 }
 
+/** Islands proper; bridges belong to none of them. */
+function islandCount(state: GameState): number {
+  const seen = new Set(state.islands);
+  seen.delete(BRIDGE);
+  return seen.size;
+}
+
 function furthestPair(state: GameState, candidates: readonly number[]): number[] | null {
   let bestPair: number[] | null = null;
   let bestDistance = -1;
 
   for (let i = 0; i < candidates.length; i++) {
     for (let j = i + 1; j < candidates.length; j++) {
+      if (state.islands[candidates[i]!] === state.islands[candidates[j]!]) continue;
       const distance = distanceBetween(state, candidates[i]!, candidates[j]!);
       if (distance > bestDistance) {
         bestDistance = distance;
@@ -255,6 +300,10 @@ function distanceBetween(state: GameState, a: number, b: number): number {
 }
 
 function isViableStart(state: GameState, nodeId: number): boolean {
+  // Never on a gateway: an opening should be a home, not a doorway somebody
+  // else is about to come through.
+  if (state.nodes[nodeId]?.kind !== 'base') return false;
+
   const neighbours = state.adjacency[nodeId] ?? [];
   if (neighbours.length < 2) return false;
   return neighbours.some((id) => (state.nodes[id]?.points ?? Infinity) < START_POINTS);

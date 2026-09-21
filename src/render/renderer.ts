@@ -96,8 +96,8 @@ export class GameRenderer {
 
   constructor(
     private readonly app: Application,
-    private readonly worldWidth: number,
-    private readonly worldHeight: number,
+    private worldWidth: number,
+    private worldHeight: number,
   ) {
     this.brushes = createBrushes();
     this.motes = new ParticleContainer({
@@ -119,6 +119,13 @@ export class GameRenderer {
       this.labelLayer,
     );
     this.app.stage.addChild(this.world);
+  }
+
+  /** Boards differ in size; the view scales whichever one is in play to fit. */
+  setWorld(width: number, height: number): void {
+    this.worldWidth = width;
+    this.worldHeight = height;
+    this.layout();
   }
 
   /**
@@ -621,9 +628,14 @@ export class GameRenderer {
 }
 
 /** Corners of a fortress body, as a share of the node radius. */
-const BASTION_BODY = 1.14;
-/** Where the fortress wall sits, as a share of the node radius. */
-const BASTION_WALL = 1.34;
+const BASTION_BODY = 1.1;
+/**
+ * Where the fortress wall sits, as a share of the node radius.
+ *
+ * Kept tight: a bridge occasionally has to stand closer than a full step from
+ * its shore, and a wide wall would then draw over the node it joins.
+ */
+const BASTION_WALL = 1.24;
 
 /** Traces a flat-topped hexagon; the caller strokes or fills it. */
 function hexagonPath(graphics: Graphics, x: number, y: number, radius: number): void {

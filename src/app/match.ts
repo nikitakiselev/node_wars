@@ -6,8 +6,11 @@ import type { GameState, OwnerId } from '../core/state';
 import { MAX_PLAYERS } from '../render/theme';
 import { FixedTimestep } from './loop';
 
-/** Map coordinates. The view scales this to fit whatever the window is. */
+/** The middle board. Kept as the reference the renderer and tests work from. */
 export const WORLD = { width: 1600, height: 1000 } as const;
+
+/** Spacing between neighbouring nodes, the same on every board. */
+export const NODE_SPACING = 85;
 
 /** Simulation rate. Fixed, so a match is reproducible from its seed. */
 export const STEP_SECONDS = 1 / 30;
@@ -18,10 +21,18 @@ export const HUMAN: OwnerId = 0;
 export const MAX_OPPONENTS = MAX_PLAYERS - 1;
 
 /** Board sizes, set by how closely nodes may be packed. */
+/**
+ * Board sizes, set by how much world there is.
+ *
+ * Node spacing stays the same and the world grows instead, because islands
+ * need water around them: packing nodes closer on a fixed board buys extra
+ * nodes by taking away the water, and the islands stop being islands. A larger
+ * world simply holds more of them, drawn smaller since the view scales to fit.
+ */
 export const MAP_SIZES = {
-  small: { label: 'Малая', minDistance: 195 },
-  medium: { label: 'Средняя', minDistance: 140 },
-  large: { label: 'Большая', minDistance: 108 },
+  small: { label: 'Малая', width: 1320, height: 860 },
+  medium: { label: 'Средняя', width: 1600, height: 1000 },
+  large: { label: 'Большая', width: 2150, height: 1340 },
 } as const;
 
 /** How stubbornly the unclaimed ground defends itself. */
@@ -59,6 +70,8 @@ export function defaultSettings(): MatchSettings {
 export class Match {
   readonly state: GameState;
   readonly settings: MatchSettings;
+  /** Size of the board this match is played on, in world units. */
+  readonly world: { width: number; height: number };
   private readonly bots: Ai[];
   private readonly clock = new FixedTimestep(STEP_SECONDS);
 
@@ -66,11 +79,13 @@ export class Match {
     const aiCount = clamp(settings.aiCount, 1, MAX_OPPONENTS);
     this.settings = { ...settings, aiCount };
 
+    const board = MAP_SIZES[settings.mapSize];
+    this.world = { width: board.width, height: board.height };
     this.state = generateMap({
-      width: WORLD.width,
-      height: WORLD.height,
+      width: board.width,
+      height: board.height,
       seed: settings.seed,
-      minDistance: MAP_SIZES[settings.mapSize].minDistance,
+      minDistance: NODE_SPACING,
       keepRatio: 0.5,
       playerCount: aiCount + 1,
       neutralGarrison: MAP_DIFFICULTIES[settings.mapDifficulty].neutralGarrison,
