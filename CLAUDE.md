@@ -173,11 +173,11 @@ then faded, since a zoomed-in board pans nodes up underneath both. The strip is
 positioned, so the scoreboard is given `position: relative` as well; otherwise
 it paints under the very thing meant to sit behind it.
 
-The standings shrink to a coloured dot and one number apiece: the names and
-the word «узлов» cost a line of a screen with none to spare, and the tide bar
-directly above already says who holds how much. Both wordings are built into
-the row and kept up to date; the stylesheet decides which one shows, so
-`paintHud` stays one path.
+The standings are a coloured dot and one number apiece, on every screen: the
+names and the word «узлов» cost a line and say nothing the tide bar directly
+above has not already said. There is one wording, not two — an earlier version
+built both and let the stylesheet choose, which was a second thing to keep in
+step for no gain.
 
 On a phone the bottom is **one row**: the mode pills and a ☰ button, and
 everything else — rules, a new match, saving, the seed — lives behind that

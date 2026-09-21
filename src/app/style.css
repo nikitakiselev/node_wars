@@ -150,22 +150,22 @@ button,
 .readout {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 20px;
-  margin-top: 10px;
+  gap: 4px 16px;
+  margin-top: 8px;
   font-size: 14px;
   font-weight: 500;
   color: #9fb4b8;
 }
 
 .side b {
-  color: var(--seat);
-  font-size: 19px;
+  color: var(--foam);
+  font-size: 17px;
   font-weight: 800;
 }
 
-/* Shown only where there is room to spell the standing out in words. */
+/* The dot says whose the number is; the number says how much. */
 .side__dot {
-  display: none;
+  display: inline-block;
   width: 10px;
   height: 10px;
   margin-right: 7px;
@@ -544,31 +544,6 @@ button,
    underneath the very thing that exists to sit behind it. */
 :root.touch [data-hud-top] {
   position: relative;
-}
-
-/*
- * The standings, as short as they go.
- *
- * A dot for whose they are and one number for how much: the names and the
- * word "узлов" cost a line of a screen that has none to spare, and the tide
- * bar directly above already says who holds how much of the board.
- */
-:root.touch .side__spelled {
-  display: none;
-}
-
-:root.touch .side__dot {
-  display: inline-block;
-}
-
-:root.touch .side b {
-  color: var(--foam);
-  font-size: 17px;
-}
-
-:root.touch .readout {
-  gap: 4px 16px;
-  margin-top: 8px;
 }
 
 /*

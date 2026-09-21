@@ -249,7 +249,7 @@ let settings: MatchSettings = {
   portrait: portraitScreen(),
 };
 let match = new Match(settings);
-let seats: { bar: HTMLElement; nodes: HTMLElement; points: HTMLElement }[] = [];
+let seats: { bar: HTMLElement; points: HTMLElement }[] = [];
 /** The match to return to if the setup dialog is dismissed without starting. */
 let resumed: Match = match;
 /** Until the first match is started there is nothing to dismiss the dialog to. */
@@ -664,35 +664,22 @@ function buildScoreboard(playerCount: number): void {
     bar.style.boxShadow = `0 0 14px ${colour}99`;
     hud.tide.appendChild(bar);
 
-    // One seat, written twice over: a sentence for a screen with room for it,
-    // and a dot with a number for one without. Which of them shows is the
-    // stylesheet's business; both are kept up to date either way.
+    // A dot for whose it is and one number for how much. The names and the
+    // word "узлов" cost a line and say nothing the tide bar above has not
+    // already said, on any screen.
     const row = document.createElement('span');
     row.className = 'side';
     row.style.setProperty('--seat', colour);
+    row.title = faction.label;
 
     const dot = document.createElement('i');
     dot.className = 'side__dot';
-
-    const name = document.createElement('span');
-    name.className = 'side__spelled';
-    name.textContent = `${faction.label}: `;
-
-    const nodes = document.createElement('b');
-    nodes.className = 'side__spelled';
-    const nodesUnit = document.createElement('span');
-    nodesUnit.className = 'side__spelled';
-    nodesUnit.textContent = ' узлов, ';
-
     const points = document.createElement('b');
-    const pointsUnit = document.createElement('span');
-    pointsUnit.className = 'side__spelled';
-    pointsUnit.textContent = ' очков';
 
-    row.append(dot, name, nodes, nodesUnit, points, pointsUnit);
+    row.append(dot, points);
     hud.readout.appendChild(row);
 
-    seats.push({ bar, nodes, points });
+    seats.push({ bar, points });
   }
 }
 
@@ -743,7 +730,6 @@ function paintHud(): void {
   seats.forEach((seat, player) => {
     const standing = standingsFor(match.state, player);
     seat.bar.style.width = `${standing.share * 100}%`;
-    seat.nodes.textContent = String(standing.nodes);
     seat.points.textContent = formatPoints(standing.points);
   });
 
