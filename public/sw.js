@@ -12,7 +12,12 @@
  * and served from the cache when there is not — which is how a new version gets
  * in at all.
  */
-const CACHE = 'node-wars-v1';
+/*
+ * Bump this whenever a file that has no hash in its name changes — the page
+ * shell, the manifest, an icon. Everything under the old name is thrown away
+ * on activation; a hashed asset needs no bump, since its name already changed.
+ */
+const CACHE = 'node-wars-v2';
 
 /** Everything needed to open the game cold, before a single asset is known. */
 const SHELL = ['./', './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png'];

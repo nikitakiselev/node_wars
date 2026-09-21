@@ -179,10 +179,17 @@ a hashed asset can never change behind its name and is served from the cache
 for ever, and the page itself is fetched from the network when there is one, so
 that a new build can get in at all.
 
+**Bump `CACHE` in `sw.js` whenever a file with no hash in its name changes** —
+the page shell, the manifest, an icon — or an installed phone keeps serving the
+old one for ever. A hashed asset never needs it; its name already changed.
+
 Two things follow. Manrope is carried in the build (`src/fonts`), not fetched
 from Google, since a game that opens in a tunnel cannot wait on a font server.
 And `scripts/icons.mjs` draws the icons and is run by hand — the PNGs are
-committed, because a build must not depend on a drawing step.
+committed, because a build must not depend on a drawing step. The mark is the
+game's verb, a node throwing its garrison at a neighbour, rather than a picture
+of the board: a whole network turns to mush at the sixty pixels an icon is
+actually looked at.
 
 ## Supply wires
 
