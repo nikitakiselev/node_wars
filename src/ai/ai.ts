@@ -1,11 +1,6 @@
 import { effectiveAttack } from '../core/combat';
 import { growthRateOf } from '../core/growth';
-import {
-  auraMultiplier,
-  defenceMultiplier,
-  drainRate,
-  growthMultiplier,
-} from '../core/kinds';
+import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { upgradeCost } from '../core/levels';
 import { SQUAD_SPEED, sendSquad } from '../core/orders';
 import { upgradeNode } from '../core/upgrade';
@@ -97,34 +92,13 @@ const FORTIFY_RESERVE = 0.5;
  *
  * @param held how many nodes the attacker owns right now.
  */
-function kindWorth(
-  state: GameState,
-  target: GameNode,
-  player: OwnerId,
-  held: number,
-): number {
+function kindWorth(target: GameNode, held: number): number {
   if (target.kind === 'farm') return growthMultiplier(target);
   if (target.kind === 'fortress') {
     return 1 + (defenceMultiplier(target) - 1) * FORTRESS_PREMIUM;
   }
   if (target.kind === 'core') return 1 + (auraMultiplier(target) - 1) * held;
-  // A battery is worth what it will shoot at: on a border it grinds the other
-  // side down for nothing, and in the rear it is a node like any other. Taken
-  // from the drain rate, so tuning the battery tunes the bot with it.
-  if (target.kind === 'battery') {
-    return facesAnEnemyOf(state, target, player) ? 1 + drainRate(target) : 1;
-  }
   return 1;
-}
-
-/** Whether this node borders somebody who is neither the player nor nobody. */
-function facesAnEnemyOf(state: GameState, node: GameNode, player: OwnerId): boolean {
-  for (const id of state.adjacency[node.id] ?? []) {
-    const neighbour = state.nodes[id];
-    if (!neighbour || neighbour.owner === NEUTRAL) continue;
-    if (neighbour.owner !== player) return true;
-  }
-  return false;
 }
 
 /** How many nodes a player is holding, for the worth of what earns across them. */
@@ -464,7 +438,7 @@ function evaluate(
   // worth more than the same node sitting neutral.
   const worth =
     target.capacity *
-    kindWorth(state, target, source.owner, held) *
+    kindWorth(target, held) *
     (target.owner === NEUTRAL ? 1 : config.aggression);
   const score = (worth / (needed + flightSeconds * 10)) * (allIn ? ALL_IN_PENALTY : 1);
 

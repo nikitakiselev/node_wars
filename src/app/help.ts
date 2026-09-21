@@ -1,9 +1,4 @@
-import {
-  auraMultiplier,
-  defenceMultiplier,
-  drainRate,
-  growthMultiplier,
-} from '../core/kinds';
+import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { MAX_LEVEL, capacityForLevel, upgradeCost } from '../core/levels';
 
 export interface HelpTable {
@@ -75,7 +70,6 @@ export function helpSections(controls: Controls = 'mouse'): HelpSection[] {
       lines: [
         'Обычный узел от уровня получает только объём, остальные — ещё и своё умение.',
         'Ядро на карте одно, посередине. Пока оно ваше, быстрее растёт вся ваша сеть.',
-        'Батарея сама точит сильнейшего вражеского соседа. Захватить она не может.',
       ],
       table: {
         head: ['', ...LEVELS.map(String)],
@@ -91,10 +85,6 @@ export function helpSections(controls: Controls = 'mouse'): HelpSection[] {
           [
             'Ядро, вся сеть',
             ...LEVELS.map((level) => `${auraMultiplier({ kind: 'core', level })}×`),
-          ],
-          [
-            'Батарея, очков в секунду',
-            ...LEVELS.map((level) => `${drainRate({ kind: 'battery', level })}`),
           ],
         ],
       },

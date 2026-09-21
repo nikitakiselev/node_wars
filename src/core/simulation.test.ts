@@ -5,22 +5,6 @@ import { isEliminated } from './simulation';
 import { sendSquad } from './orders';
 import { step } from './simulation';
 
-describe('batteries firing during a step', () => {
-  test('an enemy beside my battery loses points as the clock runs', () => {
-    const state = makeState(
-      [
-        makeNode(0, { owner: 1, kind: 'battery', points: 20 }),
-        makeNode(1, { owner: 2, points: 50 }),
-      ],
-      [[0, 1]],
-    );
-
-    step(state, 1);
-
-    expect(state.nodes[1]!.points).toBeLessThan(50);
-  });
-});
-
 describe('step', () => {
   test('advances simulated time', () => {
     const state = makeState([makeNode(0)], []);

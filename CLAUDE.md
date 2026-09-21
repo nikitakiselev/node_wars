@@ -66,8 +66,8 @@ Upgrades measurably made matches more decisive, not less — 8/10 settled versus
 
 ## Node kinds
 
-`NodeKind` is `base | fortress | farm | core | battery`, rolled independently of
-size and never given to a starting node. A fortress turns away part of an incoming *hostile* force
+`NodeKind` is `base | fortress | farm | core`, rolled independently of size and
+never given to a starting node. A fortress turns away part of an incoming *hostile* force
 (`effectiveAttack` in `combat.ts`); reinforcing your own is never reduced. A
 farm earns faster (`growthRateOf` in `growth.ts`) but holds no more, which
 keeps node size an honest read of the cap.
@@ -81,40 +81,9 @@ minute ten rather than after it. The bot prices it as `1 + (aura - 1) × nodes
 held`, so a bot with three nodes ignores it and a bot with thirty drops
 everything: the same table tunes the rule and the bot together.
 
-A **battery** is the only kind that does anything to a node it does not own:
-while you hold it, it takes points off its strongest **enemy** neighbour every
-step, without an order (`core/drain.ts`, run from `step` right after growth —
-the nodes earn, then the batteries take it off them). It never captures: a node
-it has emptied still belongs to whoever held it, so what a battery buys is
-pressure, not ground. It deliberately leaves **neutral** ground alone, because
-what neutral nodes cost to take is a match setting the player chose in the
-dialog, and a battery that erased it would quietly undo that choice. The bot
-prices it as `1 + drain` only when the node borders an enemy of its own — on a
-border it grinds for free, in the rear it is a node like any other.
-
-**A battery's drain has to beat `GROWTH_PER_SECOND`, or it does nothing.** A
-node earns a point a second up to its ceiling, so a smaller drain only slows it
-down — and against a node already at its ceiling it does *nothing at all*,
-because growth puts back every point it took, every step. The first numbers
-were 0.35 to 1.3 and four levels out of five were invisible in play. The table
-now starts at 1.4, and `drain.test.ts` refuses any level that does not beat
-growth.
-
-**A battery fires on one neighbour at a time: whichever has the most points and
-is neither yours nor nobody's.** It does not care which player owns it — with
-five enemies around it, it shaves the biggest stack of the five — and it
-re-picks every step, so the moment its target drops below another neighbour it
-moves on. The effect is that it holds down whoever is currently largest.
-
-**Batteries stack, and that is the point of taking several.** Each one fires on
-its own strongest enemy neighbour, so two around one node both hit it and two
-along a line each hit their own. Four at full size take points off faster than
-any node earns them, which makes the ground under them unholdable by standing
-on it — the defender has to ship reserves in or take a battery off you.
-
 All of these scale with level and live in one table, `BY_LEVEL` in
 `core/kinds.ts`: defence 1.2× to 2×, growth 1.4× to 2.5×, aura 1.12× to 1.28×,
-drain 1.4 to 3.6 points a second, and nothing at any level for a plain node. Only a finished fortress costs double to take. Read
+and 1× at every level for a plain node. Only a finished fortress costs double to take. Read
 them through `defenceMultiplier` / `growthMultiplier` rather than hardcoding a
 constant anywhere.
 

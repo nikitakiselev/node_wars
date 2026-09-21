@@ -31,8 +31,6 @@ const LARGEST_RADIUS = radiusForLevel(MAX_LEVEL);
 /** One farm per this many interior nodes, so every island earns something. */
 const NODES_PER_FARM = 5;
 const MAX_FARMS_PER_ISLAND = 3;
-const NODES_PER_BATTERY = 7;
-const MAX_BATTERIES_PER_ISLAND = 2;
 
 /** Default share of its capacity an unclaimed node defends with. */
 export const DEFAULT_NEUTRAL_GARRISON = 0.35;
@@ -213,7 +211,6 @@ function placeKinds(state: GameState, bridges: readonly number[], rng: Rng): voi
     if (interior.length === 0) continue;
 
     scatter(interior, 'farm', MAX_FARMS_PER_ISLAND, NODES_PER_FARM, rng);
-    scatter(interior, 'battery', MAX_BATTERIES_PER_ISLAND, NODES_PER_BATTERY, rng);
   }
 }
 

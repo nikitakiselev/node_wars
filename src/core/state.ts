@@ -13,7 +13,7 @@ export const NEUTRAL: OwnerId = -1;
  *
  * Terrain, not allegiance: a kind works the same for whoever holds the node.
  */
-export type NodeKind = 'base' | 'fortress' | 'farm' | 'core' | 'battery';
+export type NodeKind = 'base' | 'fortress' | 'farm' | 'core';
 
 export interface GameNode {
   id: number;
