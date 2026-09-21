@@ -93,10 +93,14 @@ describe('a full match', () => {
   });
 
   test('a decided match leaves nothing unclaimed', () => {
-    const state = playOut(1, 'hard', 'hard');
+    // Whichever map settles first: which seeds do is a property of the boards,
+    // not of the rule being checked here.
+    const decided = [1, 2, 3, 4, 5]
+      .map((seed) => playOut(seed, 'hard', 'hard'))
+      .find((state) => state.winner !== null);
 
-    expect(state.winner).not.toBeNull();
-    expect(state.nodes.every((node) => node.owner === state.winner)).toBe(true);
+    expect(decided, 'no match settled at all').toBeDefined();
+    expect(decided!.nodes.every((node) => node.owner === decided!.winner)).toBe(true);
   });
 
   test('a hard bot beats an easy one on most maps', () => {

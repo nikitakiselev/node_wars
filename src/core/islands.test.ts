@@ -4,7 +4,7 @@ import { BRIDGE, buildIslandLayout, scatterIslands } from './islands';
 import { createRng } from './rng';
 
 /** The spacing the game actually plays at. */
-function scattered(seed = 1, minDistance = 85) {
+function scattered(seed = 1, minDistance = 70) {
   return scatterIslands(1600, 1000, minDistance, createRng(seed));
 }
 
@@ -30,7 +30,7 @@ describe('scatterIslands', () => {
     }
 
     // Neighbours within an island sit closer than anything across the water.
-    expect(nearestAcross).toBeGreaterThan(85);
+    expect(nearestAcross).toBeGreaterThan(70);
     expect(furthestWithin).toBeGreaterThan(0);
   });
 
@@ -61,7 +61,7 @@ describe('scatterIslands', () => {
   });
 
   test('tighter spacing fits more of everything', () => {
-    expect(scattered(6, 70).points.length).toBeGreaterThan(scattered(6, 110).points.length);
+    expect(scattered(6, 60).points.length).toBeGreaterThan(scattered(6, 100).points.length);
   });
 
   test('the same seed lays out the same board', () => {
@@ -72,7 +72,7 @@ describe('scatterIslands', () => {
 describe('buildIslandLayout', () => {
   function layoutOf(seed = 1) {
     const { points, islands } = scattered(seed);
-    return buildIslandLayout(points, islands, createRng(seed), 0.55, 85);
+    return buildIslandLayout(points, islands, createRng(seed), 0.55, 70);
   }
 
   test('the whole board is one connected network', () => {

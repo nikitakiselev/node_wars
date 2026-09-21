@@ -9,8 +9,13 @@ import { FixedTimestep } from './loop';
 /** The middle board. Kept as the reference the renderer and tests work from. */
 export const WORLD = { width: 1600, height: 1000 } as const;
 
-/** Spacing between neighbouring nodes, the same on every board. */
-export const NODE_SPACING = 85;
+/**
+ * Spacing between neighbouring nodes, the same on every board.
+ *
+ * Bounded from below by the widest node plus a fortress wall: a bridge sitting
+ * a step from its shore must not draw over it.
+ */
+export const NODE_SPACING = 70;
 
 /** Simulation rate. Fixed, so a match is reproducible from its seed. */
 export const STEP_SECONDS = 1 / 30;

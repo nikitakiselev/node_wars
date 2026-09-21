@@ -7,7 +7,7 @@ import { BRIDGE } from './islands';
 import { MAX_LEVEL, capacityForLevel, radiusForLevel } from './levels';
 
 // A board the size the game actually plays on, at the spacing it uses.
-const CONFIG = { width: 1600, height: 1000, minDistance: 85, keepRatio: 0.55 };
+const CONFIG = { width: 1600, height: 1000, minDistance: 70, keepRatio: 0.55 };
 
 function map(seed: number): GameState {
   return generateMap({ ...CONFIG, seed });
