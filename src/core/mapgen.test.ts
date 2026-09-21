@@ -7,7 +7,7 @@ import { BRIDGE } from './islands';
 import { MAX_LEVEL, capacityForLevel, radiusForLevel } from './levels';
 
 // A board the size the game actually plays on, at the spacing it uses.
-const CONFIG = { width: 1600, height: 1000, minDistance: 70, keepRatio: 0.55 };
+const CONFIG = { width: 1600, height: 1000, minDistance: 70 };
 
 function map(seed: number): GameState {
   return generateMap({ ...CONFIG, seed });
@@ -16,6 +16,47 @@ function map(seed: number): GameState {
 function ownedBy(state: GameState, owner: number) {
   return state.nodes.filter((n) => n.owner === owner);
 }
+
+describe('a board is a network, not a string of beads', () => {
+  /** Nodes on islands; a bridge always has exactly two neighbours by design. */
+  function inland(state: GameState) {
+    return state.nodes.filter((node) => state.islands[node.id] !== BRIDGE);
+  }
+
+  test('the average node has somewhere to go besides back', () => {
+    // At half the Delaunay edges this was 2.3 — a node's two neighbours were
+    // where it came from and where it was going, so every front was one node
+    // wide and nothing could be gone round.
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const state = map(seed);
+      const nodes = inland(state);
+      const degree =
+        nodes.reduce((sum, n) => sum + (state.adjacency[n.id]?.length ?? 0), 0) / nodes.length;
+
+      expect(degree, `seed ${seed}`).toBeGreaterThan(2.6);
+    }
+  });
+
+  test('dead ends are rare rather than a fifth of the board', () => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const state = map(seed);
+      const nodes = inland(state);
+      const deadEnds = nodes.filter((n) => (state.adjacency[n.id]?.length ?? 0) <= 1);
+
+      expect(deadEnds.length / nodes.length, `seed ${seed}`).toBeLessThan(0.12);
+    }
+  });
+
+  test('there are real loops to go round through', () => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const state = map(seed);
+      // Edges beyond a spanning tree: every one of them is another way round.
+      const loops = state.edges.length - state.nodes.length + 1;
+
+      expect(loops, `seed ${seed}`).toBeGreaterThan(state.nodes.length / 4);
+    }
+  });
+});
 
 describe('the core, the one node worth crossing the board for', () => {
   test('every board carries exactly one', () => {

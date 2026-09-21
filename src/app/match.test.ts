@@ -21,7 +21,6 @@ const MAP = {
   width: MAP_SIZES.medium.width,
   height: MAP_SIZES.medium.height,
   minDistance: NODE_SPACING,
-  keepRatio: 0.5,
 };
 
 /** Plays a whole match between two bots and reports how it ended. */

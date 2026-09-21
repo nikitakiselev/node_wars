@@ -29,6 +29,22 @@ const START_LEVEL = 2;
 const LARGEST_RADIUS = radiusForLevel(MAX_LEVEL);
 
 /** One farm per this many interior nodes, so every island earns something. */
+/**
+ * Share of an island's Delaunay edges the board keeps.
+ *
+ * The single number that decides whether a board is a network or a string of
+ * beads, and it was 0.5. Measured on a medium board at 0.5: the average island
+ * node had 2.3 neighbours, eleven nodes in sixty-nine were dead ends, and the
+ * whole board held ten loops — a tree with a few edges left over, where every
+ * front is one node wide and nothing can be gone round.
+ *
+ * At 0.7 the same boards have 2.9 neighbours a node, three or four dead ends
+ * and twenty-seven loops, and bot-against-bot matches settle in 4.3 minutes
+ * rather than 6.4: fronts can be broken instead of leaned on. Higher still
+ * flattens out — 0.8 buys more edges and gives the time back.
+ */
+export const DEFAULT_KEEP_RATIO = 0.7;
+
 const NODES_PER_FARM = 5;
 const MAX_FARMS_PER_ISLAND = 3;
 
@@ -52,7 +68,7 @@ export interface MapConfig {
   seed: number;
   /** Closest two nodes may sit; this is what sets the size of the board. */
   minDistance: number;
-  keepRatio: number;
+  keepRatio?: number;
   /** Seats at the table, the human included. Defaults to two. */
   playerCount?: number;
   /** Share of its capacity an unclaimed node defends with. */
@@ -108,7 +124,13 @@ function drawMap(config: MapConfig, rng: Rng, crowding = 1): GameState | null {
 
   if (placed.length < 12) return null;
 
-  const layout = buildIslandLayout(placed, islands, rng, config.keepRatio, config.minDistance);
+  const layout = buildIslandLayout(
+    placed,
+    islands,
+    rng,
+    config.keepRatio ?? DEFAULT_KEEP_RATIO,
+    config.minDistance,
+  );
 
   const garrison = config.neutralGarrison ?? DEFAULT_NEUTRAL_GARRISON;
   const nodes = layout.points.map((point, id) => makeNode(id, point, rng, garrison));

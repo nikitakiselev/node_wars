@@ -121,7 +121,6 @@ export class Match {
       height: board.height,
       seed: settings.seed,
       minDistance: NODE_SPACING,
-      keepRatio: 0.5,
       playerCount: aiCount + 1,
       neutralGarrison: MAP_DIFFICULTIES[settings.mapDifficulty].neutralGarrison,
     });

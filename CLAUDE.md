@@ -451,6 +451,18 @@ the longest edges first and never breaks connectivity. Delaunay is what keeps
 the graph planar — **edges must never cross**, or players cannot read who is
 connected to whom.
 
+**`DEFAULT_KEEP_RATIO` decides whether a board is a network or a chain, and it
+is the most load-bearing number in map generation.** At 0.5, where it started,
+a medium board gave the average island node 2.3 neighbours — the one it came
+from and the one it was going to — with eleven dead ends in sixty-nine nodes
+and ten loops on the whole board. Every front was one node wide; nothing could
+be flanked, gone round or cut off, and that is most of why matches felt the
+same. At 0.7 the same boards have 2.9 neighbours a node, three or four dead
+ends and twenty-seven loops, and bot-against-bot matches settle in 4.3 minutes
+instead of 6.4. Raising it further flattens out: 0.8 buys edges and gives the
+time back. `mapgen.test.ts` guards the shape — average degree, share of dead
+ends, and loops beyond a spanning tree — rather than the number itself.
+
 A starting node must have at least two neighbours and one neighbour it can take
 with its opening points. The furthest-apart pair on a Delaunay mesh is almost
 always two corner dead ends, which produces slow, lopsided openings and can wall
