@@ -349,10 +349,37 @@ registerWorker();
  */
 function registerWorker(): void {
   if (!('serviceWorker' in navigator) || !import.meta.env.PROD) return;
+
   window.addEventListener('load', () => {
-    void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {
-      // An unregistered worker costs offline play and nothing else.
-    });
+    void navigator.serviceWorker
+      // updateViaCache: 'none' — the worker script itself must not come from
+      // the browser's cache, or the thing whose job is to fetch new builds is
+      // the one file that never gets fetched.
+      .register(`${import.meta.env.BASE_URL}sw.js`, { updateViaCache: 'none' })
+      .then((registration) => {
+        // A home-screen app can sit suspended for days and come back without
+        // navigating anywhere, so nothing ever asks whether there is a new
+        // build. Ask on every wake instead of waiting to be told.
+        const ask = () => void registration.update().catch(() => undefined);
+        ask();
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) ask();
+        });
+      })
+      .catch(() => {
+        // An unregistered worker costs offline play and nothing else.
+      });
+  });
+
+  // A new worker taking charge means new files are in place; the page is still
+  // running the old ones. Write the match down first — a reload that loses the
+  // game would be a worse bug than the one being fixed.
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return;
+    reloading = true;
+    saveNow();
+    window.location.reload();
   });
 }
 

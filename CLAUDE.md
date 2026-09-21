@@ -222,6 +222,16 @@ a hashed asset can never change behind its name and is served from the cache
 for ever, and the page itself is fetched from the network when there is one, so
 that a new build can get in at all.
 
+**Two things about an installed app that are not obvious.** iOS reads
+`apple-mobile-web-app-capable` and the status-bar style **when the icon is
+added to the home screen** and keeps them in the bookmark; an installed app
+never picks up a change to either, however many times the HTML is replaced.
+Changing those means asking the player to re-add the icon — there is no code
+fix. And a home-screen app can sit suspended for days and come back without
+navigating, so nothing asks whether a new build exists: `registerWorker` calls
+`registration.update()` on every wake and reloads the page when a new worker
+takes charge, saving the match first.
+
 **Bump `CACHE` in `sw.js` whenever a file with no hash in its name changes** —
 the page shell, the manifest, an icon — or an installed phone keeps serving the
 old one for ever. A hashed asset never needs it; its name already changed.
