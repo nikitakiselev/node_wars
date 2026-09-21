@@ -159,6 +159,11 @@ export class GameRenderer {
     this.world.position.set(x, y);
   }
 
+  /** How far in the view is zoomed, for a control that has to show it. */
+  get zoom(): number {
+    return this.camera.zoom;
+  }
+
   /** Zooms about a point on the canvas, which stays where it is. */
   zoomAt(factor: number, screenX: number, screenY: number): void {
     this.camera.zoomAt(factor, screenX, screenY);

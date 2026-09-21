@@ -169,11 +169,21 @@ directly above already says who holds how much. Both wordings are built into
 the row and kept up to date; the stylesheet decides which one shows, so
 `paintHud` stays one path.
 
-On a phone the footer holds **one** button, «Меню», and everything else —
-rules, a new match, saving, the seed — lives behind it on the pause screen,
-which already existed. The bottom strip is the most expensive place on the
-screen: the home indicator takes a band of it before anything is drawn, and
-none of those controls is wanted during a move.
+On a phone the bottom is **one row**: the mode pills and a ☰ button, and
+everything else — rules, a new match, saving, the seed — lives behind that
+button on the pause screen, which already existed. Four words plus a fifth do
+not fit across a phone, so the menu is a mark rather than a label. The bottom
+strip is the most expensive place on the screen, and none of those controls is
+wanted during a move.
+
+Zoom has a rail down the right edge as well as the pinch (`.zoom` in
+`main.ts`). A pinch takes two fingers, which takes both hands; the rail is the
+same zoom under the thumb of the hand already holding the phone. It reads
+`renderer.zoom` rather than keeping a number of its own, so pinching moves its
+thumb too — one zoom, shown twice. Anything that paints it belongs in
+`paintOverlays`, and **anything the first frame touches has to be declared
+before `openStart()` runs**: the consts are not hoisted, and a rail declared
+below it throws on the opening frame.
 
 `help.ts` takes the same argument. Telling a player to right-click on a screen
 with no mouse is the same kind of lie as a stale number, so the rules panel

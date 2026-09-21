@@ -11,6 +11,7 @@ import { clearWire } from '../core/wires';
 import { standingsFor } from '../core/standings';
 import { SEND_MODES, type SendMode } from '../input/fractions';
 import { PointerControls } from '../input/pointer';
+import { MAX_ZOOM } from '../render/camera';
 import { GameRenderer } from '../render/renderer';
 import { COLORS, factionOf } from '../render/theme';
 import {
@@ -288,6 +289,48 @@ const controls = new PointerControls(
   () => sendMode,
 );
 
+/*
+ * Zoom on one thumb.
+ *
+ * A pinch takes two fingers, which takes both hands. The rail is the same
+ * zoom laid along the right edge: drag it up to come in, down to go back to
+ * the whole board. It reads the camera rather than keeping a number of its
+ * own, so pinching moves the thumb too — there is one zoom, shown twice.
+ */
+const zoomRail = document.querySelector<HTMLElement>('[data-zoom]')!;
+const zoomThumb = document.querySelector<HTMLElement>('[data-zoom-thumb]')!;
+zoomRail.hidden = !touchPlayer;
+
+function paintZoom(): void {
+  if (zoomRail.hidden) return;
+  // Geometric, so that half way up is half way in: 1, 2, 4 rather than 1, 2.5, 4.
+  const fraction = Math.log(renderer.zoom) / Math.log(MAX_ZOOM);
+  zoomThumb.style.top = `${(1 - fraction) * 100}%`;
+}
+
+function zoomFromRail(clientY: number): void {
+  const rail = zoomRail.getBoundingClientRect();
+  const fraction = Math.min(1, Math.max(0, 1 - (clientY - rail.top) / rail.height));
+  const target = Math.pow(MAX_ZOOM, fraction);
+
+  // About the middle of the screen: the thing you were looking at stays put.
+  renderer.zoomAt(target / renderer.zoom, window.innerWidth / 2, window.innerHeight / 2);
+  paintOverlays();
+  renderer.draw(match.state, match.alpha, STEP_SECONDS, controls.hint);
+  app.render();
+}
+
+zoomRail.addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  zoomRail.setPointerCapture(event.pointerId);
+  zoomFromRail(event.clientY);
+});
+
+zoomRail.addEventListener('pointermove', (event) => {
+  if (!zoomRail.hasPointerCapture(event.pointerId)) return;
+  zoomFromRail(event.clientY);
+});
+
 buildSettingsForm();
 fitBoard();
 openStart();
@@ -465,6 +508,7 @@ function showMatch(next: Match): void {
 function paintOverlays(): void {
   paintUpgradeControl();
   paintWireControl();
+  paintZoom();
 }
 
 /**
