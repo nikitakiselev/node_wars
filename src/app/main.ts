@@ -133,6 +133,7 @@ function paintDiagnostics(): void {
   const probe = getComputedStyle(document.querySelector('.safe-probe')!);
   const safe = `${probe.paddingTop} / ${probe.paddingBottom}`;
   diagnostics.textContent = [
+    `сборка ${__BUILD_TIME__}`,
     `окно ${window.innerWidth}×${window.innerHeight}`,
     `экран ${window.screen.width}×${window.screen.height}`,
     `холст ${Math.round(app.screen.width)}×${Math.round(app.screen.height)}`,

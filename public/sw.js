@@ -17,7 +17,7 @@
  * shell, the manifest, an icon. Everything under the old name is thrown away
  * on activation; a hashed asset needs no bump, since its name already changed.
  */
-const CACHE = 'node-wars-v2';
+const CACHE = 'node-wars-v3';
 
 /** Everything needed to open the game cold, before a single asset is known. */
 const SHELL = ['./', './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png'];
@@ -51,9 +51,14 @@ self.addEventListener('fetch', (event) => {
 
   // A navigation is the one request that decides which build you are playing,
   // so it asks the network first and falls back to the copy on the phone.
+  //
+  // `no-store` is the point of it: the page is served with a ten-minute
+  // max-age, so a plain fetch is answered by the browser's own cache and the
+  // app goes on launching a build that was replaced a quarter of an hour ago.
+  // The network is the only thing that knows which build is current.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(request.url, { cache: 'no-store', credentials: 'same-origin' })
         .then((response) => {
           void keep(request, response.clone());
           return response;
