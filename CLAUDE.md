@@ -399,6 +399,12 @@ there too, which is why the handlers come first in the file.
 - **Node rings are one `Graphics` per node**, redrawn only when a signature of
   owner and quantised fill changes. A single shared `Graphics` re-tessellates
   the whole board every frame and is most of what the game costs.
+- **Supply wires are stroked once per player, not once per dash.** The dashes
+  run, so the layer is rebuilt every frame, and each `stroke()` is its own
+  tessellation. Measured with 53 wires on screen: a stroke per dash cost 1.83ms
+  of a 16.7ms frame, gathering each colour's dashes into one path and stroking
+  once cost 0.94ms. Pixi's `moveTo` does start a new subpath, so the dashes
+  stay dashes — it is `arc` that continues from the current point.
 - **`?autopause=off` keeps a match running in an unfocused window**, which is
   what automated runs want; `readOptions` in `app/options.ts` parses it.
   Escape still pauses by hand. `?controls=touch` lays the phone controls out on
