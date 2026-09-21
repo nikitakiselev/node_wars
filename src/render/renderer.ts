@@ -11,8 +11,9 @@ import { formatPoints } from '../core/format';
 import { MAX_LEVEL } from '../core/levels';
 import { Camera, type Insets } from './camera';
 import { NEUTRAL, type GameNode, type GameState, type Squad } from '../core/state';
-import { COLORS, FONT_FAMILY, factionOf } from './theme';
+import { COLORS, FONT_FAMILY, MAX_PLAYERS, factionOf } from './theme';
 import { DASH_TILE, createBrushes, type Brushes } from './textures';
+import { drainTargetOf } from '../core/drain';
 
 /** What the renderer needs to know about the player's current gesture. */
 export interface DragHint {
@@ -85,6 +86,7 @@ export class GameRenderer {
   private readonly edgeLayer = new Graphics();
   private readonly wireLayer: ParticleContainer;
   private readonly liveEdgeLayer = new Graphics();
+  private readonly fireLayer = new Graphics();
   private readonly glowLayer = new Container();
   private readonly discLayer = new Container();
   private readonly ringLayer = new Container();
@@ -125,6 +127,7 @@ export class GameRenderer {
     this.world.addChild(
       this.edgeLayer,
       this.wireLayer,
+      this.fireLayer,
       this.liveEdgeLayer,
       this.glowLayer,
       this.discLayer,
@@ -295,6 +298,7 @@ export class GameRenderer {
     this.drawRings(state);
     this.drawStreams(state, alpha, stepSeconds, time);
     this.drawWires(state, time);
+    this.drawFire(state, time);
     this.drawLiveEdges(state, drag);
     this.drawBeacon(state, time);
     this.advanceFlashes(state, stepSeconds * alpha);
@@ -626,6 +630,53 @@ export class GameRenderer {
     return dash;
   }
 
+  /**
+   * The beam from each battery to whatever it is grinding down.
+   *
+   * Without it a battery is a node that quietly does something somewhere, and
+   * a player cannot tell a working one from one whose neighbours are all
+   * unclaimed — which is every battery early in a match, since they do not
+   * fire on neutral ground. The target comes from the same function the rule
+   * takes the points with, so the beam cannot point somewhere the damage is
+   * not going.
+   */
+  private drawFire(state: GameState, time: number): void {
+    this.fireLayer.clear();
+
+    // A pulse rather than a steady line: a battery is firing, not connected.
+    const pulse = 0.34 + Math.sin(time * FIRE_PULSE) * 0.16;
+
+    for (let owner = 0; owner < MAX_PLAYERS; owner++) {
+      let firing = false;
+
+      for (const battery of state.nodes) {
+        if (battery.owner !== owner) continue;
+        const target = drainTargetOf(state, battery);
+        if (!target) continue;
+
+        const dx = target.x - battery.x;
+        const dy = target.y - battery.y;
+        const length = Math.hypot(dx, dy);
+        if (length < 1) continue;
+
+        const ux = dx / length;
+        const uy = dy / length;
+        const from = battery.radius + 2;
+        const to = length - target.radius - 2;
+        if (to <= from) continue;
+
+        this.fireLayer
+          .moveTo(battery.x + ux * from, battery.y + uy * from)
+          .lineTo(battery.x + ux * to, battery.y + uy * to);
+        firing = true;
+      }
+
+      if (firing) {
+        this.fireLayer.stroke({ width: 3, color: factionOf(owner).glow, alpha: pulse });
+      }
+    }
+  }
+
   private drawLiveEdges(state: GameState, drag: DragHint): void {
     this.liveEdgeLayer.clear();
 
@@ -741,6 +792,9 @@ function hexagonPath(graphics: Graphics, x: number, y: number, radius: number): 
   }
   graphics.closePath();
 }
+
+/** How fast a battery's beam pulses, in radians a second. */
+const FIRE_PULSE = 7;
 
 /** How thick a supply wire is drawn, in world units. */
 const WIRE_WIDTH = 2.5;
