@@ -154,8 +154,9 @@ pointer, and the phone layout would otherwise need a phone to look at.
 The bottom safe-area band is deliberately **not** reserved: iOS keeps about
 34pt for the home indicator, which draws over whatever is under it and stays
 legible on a dark board, so giving it a band of its own only throws the room
-away. What is left is a 14pt margin, enough to keep the indicator off the face
-of the button. The top is the opposite case: the status bar is drawn over the
+away. The HUD keeps none of it — the bar sits flush on the edge of the glass,
+and the indicator crosses it, which is what the indicator is designed to do.
+The top is the opposite case: the status bar is drawn over the
 board, so the strip behind the clock and the scoreboard is painted solid down
 to `--hud-top` — the same measurement the board's insets are taken from — and
 then faded, since a zoomed-in board pans nodes up underneath both. The strip is

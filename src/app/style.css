@@ -361,17 +361,16 @@ button,
 }
 
 /*
- * The bottom edge, without the safe-area band.
+ * The bottom edge, flush.
  *
  * iOS reserves about 34pt down there for the home indicator, and on top of a
- * dark board that band is simply thrown away: the indicator draws over
- * whatever is beneath it and stays legible. What is left is enough of a margin
- * to keep the indicator off the face of the button, and the board gets the
- * rest — the insets are measured from the HUD, so it takes the room back on
- * its own.
+ * dark board that band is thrown away: the indicator draws over whatever is
+ * beneath it and stays perfectly legible. So the HUD keeps none of it and the
+ * bar sits on the edge of the glass; the board takes the rest, since its
+ * insets are measured from the HUD rather than guessed.
  */
 :root.touch .hud {
-  padding-bottom: 14px;
+  padding-bottom: 0;
 }
 
 /*
