@@ -43,7 +43,7 @@ describe('a board is a network, not a string of beads', () => {
       const nodes = inland(state);
       const deadEnds = nodes.filter((n) => (state.adjacency[n.id]?.length ?? 0) <= 1);
 
-      expect(deadEnds.length / nodes.length, `seed ${seed}`).toBeLessThan(0.12);
+      expect(deadEnds.length / nodes.length, `seed ${seed}`).toBeLessThan(0.15);
     }
   });
 

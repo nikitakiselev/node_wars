@@ -440,6 +440,28 @@ the water: fortifying both shores instead makes a wall facing a wall that
 neither side can attack into, measured at 1 settled match in 10 against 7 with
 bridges. Every edge joins two nodes of one island or an island to a bridge.
 
+**Islands differ in size, and that is deliberate.** Every cell used to build the
+same island, so every board was the same six clumps of seven to eleven nodes and
+a seed only moved the edges. Now each island draws its own size, and two
+neighbouring cells sometimes hold one island between them — a medium board comes
+out as a landmass of seventeen to twenty-two with four or five islands of six to
+ten around it. Two guards keep it sane: a shrunk island is never taken below the
+radius that yields `MIN_ISLAND_POINTS + 2`, or it is thrown away and the board
+loses a third of itself, and cells only merge when there is room to spare
+(`MERGE_HEADROOM`) — judged by the room in a cell rather than the number of
+them, because a small board and a medium one get the same grid and differ only
+in how big its cells are.
+
+**The grid is counted along each side, not split from the total area.** Working
+from area and then dividing by aspect ratio gave a tall board cells that were
+tight in the narrow direction; an island's radius is cut from the tighter side,
+so the long side of every cell was wasted. Measured: standing a board on its end
+cost it **thirty per cent of its nodes**, every seed, which is exactly the board
+a phone plays. Counting `floor(width / cell)` and `floor(height / cell)` gives a
+board and the same board turned a quarter the same grid, transposed — 468
+against 470 nodes over eight seeds. `CELL_TOLERANCE` is for near misses: a small
+board once came out twenty-four pixels short of a third column.
+
 Map size changes the size of the world, not the spacing of nodes; packing nodes
 closer on a fixed board buys extra nodes by taking away the water. A bridge is
 placed only where it clears every other node by a full step, or it draws over

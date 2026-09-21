@@ -39,6 +39,40 @@ const NODES_PER_WAY_OUT = 3;
 
 /** Nodes an island aims for: a territory, not a stepping stone. */
 const ISLAND_TARGET = 8;
+
+/**
+ * How small an island is allowed to come out, against the room its cell gives.
+ *
+ * Every cell used to build the same island, so every board had the same six
+ * clumps of seven to eleven nodes and the only thing a seed changed was where
+ * the edges ran. An islet of four and a territory of twelve play differently:
+ * one is a stepping stone you take in passing, the other is somewhere you have
+ * to commit to.
+ */
+const SMALLEST_ISLAND = 0.82;
+
+/**
+ * How often two neighbouring cells hold one island between them.
+ *
+ * Shrinking alone can only make boards smaller and more alike. A merged pair
+ * is the other end of the range — a landmass big enough that taking it is a
+ * campaign rather than a move — and it is what makes two boards of the same
+ * size read as different places.
+ */
+const MERGE_CHANCE = 0.28;
+
+/**
+ * How much of the room a merged pair actually fills.
+ *
+ * Slightly under the whole, or the landmass comes out at twenty-six nodes on a
+ * board of sixty and there is nothing else worth taking. At 0.8 a medium board
+ * reads as a continent of seventeen to twenty-two with several islands of six
+ * to ten around it.
+ */
+const MERGED_ISLAND = 0.8;
+
+/** How much room a cell needs beyond the minimum before islands may merge. */
+const MERGE_HEADROOM = 1.2;
 /**
  * Water between two islands, in multiples of the gap between nodes.
  *
@@ -76,24 +110,54 @@ export function scatterIslands(
   // just the roomy one.
   const water = minDistance * WATER;
   const radius = Math.max(minDistance, (Math.min(cellWidth, cellHeight) - water) / 2);
+  // Shrinking an island is only interesting while it stays an island. Below
+  // this it comes out under MIN_ISLAND_POINTS and is thrown away, which cost
+  // small boards two of their six.
+  const smallest = Math.sqrt(((MIN_ISLAND_POINTS + 2) * nodeArea(minDistance)) / PACKING / Math.PI);
+  // A board whose cells are already near the minimum has nothing to spend on a
+  // landmass: merging two of them gives a continent and three islets with
+  // nothing in between. Judged by the room in a cell rather than the number of
+  // them, because a small board and a medium one get the same grid and differ
+  // only in how big its cells are.
+  const mayMerge = radius > smallest * MERGE_HEADROOM;
   // Jitter, but never enough for two islands to drift into contact: the water
   // between them is the whole point of laying the board out this way.
   const wobble = Math.max(0, Math.min(cellWidth, cellHeight) * 0.5 - radius - water * 0.5);
 
   const points: Point[] = [];
   const islands: number[] = [];
+  const taken = new Set<number>();
   let island = 0;
 
   for (let row = 0; row < rows; row++) {
     for (let column = 0; column < columns; column++) {
+      const cell = row * columns + column;
+      if (taken.has(cell)) continue;
+
+      // Two cells side by side sometimes hold one island between them, which
+      // is the only way a board gets a landmass rather than another clump.
+      const canMerge = mayMerge && column + 1 < columns && !taken.has(cell + 1);
+      const merged = canMerge && rng.next() < MERGE_CHANCE;
+      if (merged) taken.add(cell + 1);
+
+      // Its own size, so islands differ from each other and from the board
+      // before it. Only ever smaller than the cell allows: bigger would eat
+      // the water, and the water is what makes them islands.
+      const scale = merged ? MERGED_ISLAND : rng.float(SMALLEST_ISLAND, 1);
+      const shrunk = Math.max(smallest, radius * scale);
+      const across = shrunk + (merged ? cellWidth / 2 : 0);
+      const down = shrunk;
+
       const centre = {
-        x: (column + 0.5) * cellWidth + rng.float(-wobble, wobble),
+        x: (column + 0.5 + (merged ? 0.5 : 0)) * cellWidth + rng.float(-wobble, wobble),
         y: (row + 0.5) * cellHeight + rng.float(-wobble, wobble),
       };
 
-      const local = poissonDiskSample(radius * 2, radius * 2, minDistance, rng)
-        .map((point) => ({ x: point.x - radius, y: point.y - radius }))
-        .filter((point) => Math.hypot(point.x, point.y) <= radius);
+      const local = poissonDiskSample(across * 2, down * 2, minDistance, rng)
+        .map((point) => ({ x: point.x - across, y: point.y - down }))
+        // An ellipse rather than a disc, so a merged pair fills the room it
+        // was given instead of leaving a circle inside a rectangle.
+        .filter((point) => (point.x / across) ** 2 + (point.y / down) ** 2 <= 1);
 
       if (local.length < MIN_ISLAND_POINTS) continue;
 
@@ -115,18 +179,33 @@ export function scatterIslands(
  * arbitrary cells: sizing islands to fit a cell left the narrow direction
  * cramped and the wide one empty, and the board read as two long bands.
  */
+/** Room one node takes up once the points are spread at the usual spacing. */
+function nodeArea(minDistance: number): number {
+  return minDistance * minDistance * 0.87;
+}
+
 function gridFor(width: number, height: number, minDistance: number) {
   // Area an island of the target size occupies once its nodes are spread at
   // the usual spacing, plus the water around it.
-  const nodeArea = minDistance * minDistance * 0.87;
-  const islandArea = (ISLAND_TARGET * nodeArea) / PACKING;
+  const islandArea = (ISLAND_TARGET * nodeArea(minDistance)) / PACKING;
   const cell = 2 * Math.sqrt(islandArea / Math.PI) + minDistance * WATER;
 
-  const room = Math.max(3, Math.floor((width * height) / (cell * cell)));
-  const columns = Math.max(2, Math.round(Math.sqrt((room * width) / height)));
-  const rows = Math.max(2, Math.round(room / columns));
-  return { columns, rows };
+  // Counted along each side rather than from the total area, so a cell is
+  // never narrower than an island needs. Working from the area and then
+  // splitting by aspect ratio gave a tall board cells that were tight in the
+  // narrow direction: the island's radius is cut from the tighter side, so the
+  // long side of every cell was wasted, and standing a board on its end cost
+  // it thirty per cent of its nodes. This way a board and the same board
+  // turned a quarter get the same grid, transposed.
+  // The tolerance is for near misses: a small board came out twenty-four
+  // pixels short of a third column and lost a third of its nodes over it. The
+  // water around an island is generous enough to give that much back.
+  const fits = (along: number) => Math.max(2, Math.floor(along / cell + CELL_TOLERANCE));
+  return { columns: fits(width), rows: fits(height) };
 }
+
+/** How far a board may fall short of another whole cell and still get one. */
+const CELL_TOLERANCE = 0.15;
 
 /** Share of a disc that Poisson-disk sampling actually fills. */
 const PACKING = 0.55;
