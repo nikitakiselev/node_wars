@@ -92,6 +92,14 @@ dialog, and a battery that erased it would quietly undo that choice. The bot
 prices it as `1 + drain` only when the node borders an enemy of its own — on a
 border it grinds for free, in the rear it is a node like any other.
 
+**A battery's drain has to beat `GROWTH_PER_SECOND`, or it does nothing.** A
+node earns a point a second up to its ceiling, so a smaller drain only slows it
+down — and against a node already at its ceiling it does *nothing at all*,
+because growth puts back every point it took, every step. The first numbers
+were 0.35 to 1.3 and four levels out of five were invisible in play. The table
+now starts at 1.4, and `drain.test.ts` refuses any level that does not beat
+growth.
+
 **Batteries stack, and that is the point of taking several.** Each one fires on
 its own strongest enemy neighbour, so two around one node both hit it and two
 along a line each hit their own. Four at full size take points off faster than
@@ -100,7 +108,7 @@ on it — the defender has to ship reserves in or take a battery off you.
 
 All of these scale with level and live in one table, `BY_LEVEL` in
 `core/kinds.ts`: defence 1.2× to 2×, growth 1.4× to 2.5×, aura 1.12× to 1.28×,
-drain 0.35 to 1.3 points a second, and nothing at any level for a plain node. Only a finished fortress costs double to take. Read
+drain 1.4 to 3.6 points a second, and nothing at any level for a plain node. Only a finished fortress costs double to take. Read
 them through `defenceMultiplier` / `growthMultiplier` rather than hardcoding a
 constant anywhere.
 

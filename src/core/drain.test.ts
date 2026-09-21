@@ -4,6 +4,7 @@ import { makeNode, makeState } from './fixtures';
 import { drainRate } from './kinds';
 import { GROWTH_PER_SECOND } from './growth';
 import { MAX_LEVEL } from './levels';
+import { step } from './simulation';
 import { NEUTRAL, type GameState } from './state';
 
 const ME = 1;
@@ -137,6 +138,33 @@ describe('a battery', () => {
     applyDrain(state, 1);
 
     expect(100 - caught.points).toBeGreaterThan(GROWTH_PER_SECOND);
+  });
+
+  test('outpaces what a node earns, at every level', () => {
+    // The trap this guards. A node earns a point a second up to its ceiling,
+    // so a battery draining less than that does not take anything off it — it
+    // only slows it down, and against a node already at its ceiling it does
+    // nothing at all, because growth puts back every point it took. Measured
+    // at 0.35 a second: a full node beside it sat at exactly full for ever.
+    for (let level = 1; level <= MAX_LEVEL; level++) {
+      expect(drainRate({ kind: 'battery', level }), `level ${level}`).toBeGreaterThan(
+        GROWTH_PER_SECOND,
+      );
+    }
+  });
+
+  test('a node at its ceiling really does lose ground to the smallest one', () => {
+    const state = makeState(
+      [
+        makeNode(0, { owner: ME, kind: 'battery', level: 1 }),
+        makeNode(1, { owner: THEM, points: 90, capacity: 90 }),
+      ],
+      [[0, 1]],
+    );
+
+    for (let tick = 0; tick < 30 * 10; tick++) step(state, 1 / 30);
+
+    expect(state.nodes[1]!.points).toBeLessThan(90);
   });
 
   test('bites harder the further it is built up', () => {

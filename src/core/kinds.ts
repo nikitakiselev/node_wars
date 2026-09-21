@@ -55,7 +55,7 @@ const BY_LEVEL: Record<NodeKind, KindTable> = {
     defence: NONE,
     growth: NONE,
     aura: NONE,
-    drain: [0.35, 0.5, 0.7, 0.95, 1.3],
+    drain: [1.4, 1.8, 2.3, 2.9, 3.6],
   },
 };
 
