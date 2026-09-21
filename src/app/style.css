@@ -345,7 +345,21 @@ button,
 }
 
 :root.touch .bottom {
-  gap: 10px;
+  gap: 8px;
+}
+
+/*
+ * The bottom edge, without the safe-area band.
+ *
+ * iOS reserves about 34pt down there for the home indicator, and on top of a
+ * dark board that band is simply thrown away: the indicator draws over
+ * whatever is beneath it and stays legible. What is left is enough of a margin
+ * to keep the indicator off the face of the button, and the board gets the
+ * rest — the insets are measured from the HUD, so it takes the room back on
+ * its own.
+ */
+:root.touch .hud {
+  padding-bottom: 14px;
 }
 
 /*

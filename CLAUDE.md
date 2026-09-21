@@ -151,6 +151,13 @@ pause button and the bigger hit targets are switched on by a `touch` class on
 be able to overrule the device — a desktop browser never reports a coarse
 pointer, and the phone layout would otherwise need a phone to look at.
 
+The bottom safe-area band is deliberately **not** reserved: iOS keeps about
+34pt for the home indicator, which draws over whatever is under it and stays
+legible on a dark board, so giving it a band of its own only throws the room
+away. What is left is a 14pt margin, enough to keep the indicator off the face
+of the button. The top inset is honoured — the status bar is opaque, and the
+scoreboard has to clear the clock.
+
 On a phone the footer holds **one** button, «Меню», and everything else —
 rules, a new match, saving, the seed — lives behind it on the pause screen,
 which already existed. The bottom strip is the most expensive place on the
