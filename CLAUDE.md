@@ -154,6 +154,23 @@ capacities, upgrade costs, the fortress and farm multipliers — is read from
 the tables the game plays by, so tuning balance cannot leave the help saying
 something else. Its tests assert exactly that, plus that it stays short.
 
+## Saving
+
+`app/save.ts` writes the match to `localStorage` under one key, stamped with
+`SAVE_VERSION`. **Bump that version whenever the shape of a match changes** — a
+new field on a node, a rule that reads state an older build never wrote. A save
+from another version is refused outright rather than loaded into a game that
+would misread it, and so is anything truncated or unparseable.
+
+Two things worth knowing. JSON has no holes, so `wires` comes back full of
+nulls and has to be revived — a wire of null is not the same as no wire.
+And a resumed match gets fresh bots: a save keeps the board, not the
+opponents' train of thought.
+
+Saving runs off the render loop, which stops when the game is paused or the tab
+is hidden — exactly when a tab tends to get closed — so `pagehide` and
+`visibilitychange` write it down as well.
+
 ## The camera
 
 `render/camera.ts` owns where the board sits on screen and is deliberately free

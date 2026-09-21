@@ -25,6 +25,7 @@ import {
 } from './match';
 import { renderHelp } from './help';
 import { readOptions } from './options';
+import { clearSave, loadSave, writeSave } from './save';
 import { buildChoices, readChoice } from './settings-form';
 import './style.css';
 
@@ -133,6 +134,7 @@ hud.upgradeButton.addEventListener('click', () => {
 
 const dialog = document.querySelector<HTMLDialogElement>('.setup')!;
 const setupForm = dialog.querySelector('form')!;
+const resumeButton = dialog.querySelector<HTMLButtonElement>('[data-resume-match]')!;
 
 let settings: MatchSettings = { ...defaultSettings(), seed: randomSeed() };
 let match = new Match(settings);
@@ -199,8 +201,15 @@ function settingsFromForm(seed: number): MatchSettings {
   };
 }
 
+/** How often the match is written to storage while it plays, in milliseconds. */
+const SAVE_EVERY = 2000;
+let lastSaved = 0;
+
 function openSettings(): void {
   resumed = match;
+  // Offer to go back to the saved match only if there is one this build can
+  // read; a save from another version is no use here.
+  resumeButton.hidden = loadSave(window.localStorage) === null;
   // The board behind the dialog is the board you are about to play, so every
   // change to the form redraws it on one fixed seed: only the setting you
   // touched moves, not the whole map.
@@ -223,10 +232,18 @@ dialog.addEventListener('cancel', (event) => {
 dialog.addEventListener('close', () => {
   // Dismissing the dialog puts the match that was running back on screen; the
   // preview was only ever a preview.
-  if (dialog.returnValue !== 'start') {
-    showMatch(resumed);
-  } else {
+  if (dialog.returnValue === 'start') {
     started = true;
+  } else if (dialog.returnValue === 'resume') {
+    const saved = loadSave(window.localStorage);
+    if (saved) {
+      showMatch(new Match(saved.settings, saved.state));
+      started = true;
+    } else {
+      showMatch(resumed);
+    }
+  } else {
+    showMatch(resumed);
   }
   settings = match.settings;
   // Starting a match clears any pause that was in force when you opened the
@@ -385,6 +402,37 @@ app.ticker.add((ticker) => {
   renderer.draw(match.state, match.alpha, STEP_SECONDS, controls.hint);
   paintHud();
   paintOverlays();
+  keepSaved();
+});
+
+/**
+ * Writes the match down every couple of seconds.
+ *
+ * Saving on a timer rather than behind a button means closing the tab by
+ * accident costs a few seconds rather than the whole game. A finished match is
+ * cleared instead: there is nothing to come back to.
+ */
+function keepSaved(): void {
+  const now = performance.now();
+  if (now - lastSaved < SAVE_EVERY) return;
+  lastSaved = now;
+  saveNow();
+}
+
+function saveNow(): void {
+  if (match.state.winner !== null || isEliminated(match.state, HUMAN)) {
+    clearSave(window.localStorage);
+    return;
+  }
+  writeSave(window.localStorage, match);
+}
+
+// The timer runs off the render loop, which stops when the game is paused or
+// the tab is hidden — exactly the moments before a tab gets closed. Write the
+// match down on the way out as well.
+window.addEventListener('pagehide', saveNow);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) saveNow();
 });
 
 function paintHud(): void {

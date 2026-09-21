@@ -418,6 +418,7 @@ body {
   gap: 10px;
 }
 
+.setup__actions button[data-resume-match],
 .setup__actions button[data-help] {
   border: 1px solid #1a4049;
   border-radius: 999px;
@@ -427,6 +428,10 @@ body {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+}
+
+.setup__actions button[data-resume-match][hidden] {
+  display: none;
 }
 
 /* Pause */

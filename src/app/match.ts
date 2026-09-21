@@ -80,13 +80,18 @@ export class Match {
   private readonly bots: Ai[];
   private readonly clock = new FixedTimestep(STEP_SECONDS);
 
-  constructor(settings: MatchSettings) {
+  /**
+   * @param resumed a board from a saved match, in place of a fresh one. The
+   * bots are always new: a save keeps the board, not the opponents' train of
+   * thought.
+   */
+  constructor(settings: MatchSettings, resumed?: GameState) {
     const aiCount = clamp(settings.aiCount, 1, MAX_OPPONENTS);
     this.settings = { ...settings, aiCount };
 
     const board = MAP_SIZES[settings.mapSize];
     this.world = { width: board.width, height: board.height };
-    this.state = generateMap({
+    this.state = resumed ?? generateMap({
       width: board.width,
       height: board.height,
       seed: settings.seed,
