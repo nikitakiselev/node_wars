@@ -104,15 +104,23 @@ matches, and undoing any of them brings back matches that never end:
   neither ever gets a fifth ahead, and the match deadlocks with both hoarding.
 - **Reserves flow down a hop-distance gradient to the nearest border**
   (`distanceToFront`). One-hop reinforcement leaves an empire's depth as dead
-  weight — 43 nodes once ground against 9 on even terms. The same gradient
-  points the bot's wires, which is what carries the steady flow; the support
-  orders are left for the urgent part.
+  weight — 43 nodes once ground against 9 on even terms.
 - **Attacks subtract friendly squads already inbound.** Otherwise a second wave
   is spent on a node the first wave has taken.
 - **Logistics has its own order budget**, separate from attacks
   (`supportOrders`). Sharing one budget let a busy front eat every order, so a
   quiet outpost was never reinforced and a pocket of neutral nodes could stay
   untaken for a whole match — an unwinnable map.
+- **That budget scales with the empire, and its size is a balance knob, not a
+  detail.** One order moves one node one hop, so a flat budget is a flat pipe:
+  it kept a chain of eight flowing and left half of a thirty-six node empire
+  standing at capacity for a whole minute. `NODES_PER_SUPPORT_ORDER` is the
+  measured middle of two failures — at 8 the rear flows and matches stop
+  ending, only 2 of 10 settled, because two bots reinforcing that hard hold
+  every front for ever; at 16 the matches come back and five nodes in
+  thirty-six go idle again. Twelve is where both hold. `match.test.ts` is what
+  catches the first failure and `src/ai/logistics.test.ts` the second; neither
+  catches both, and a chain of eight nodes catches neither.
 - **Support is scored on where it is going**, not only on where it comes from:
   how badly the destination is outgunned, and whether it is a fortress worth
   holding. Scoring the source alone made logistics blind — reserves went to the
@@ -287,16 +295,14 @@ Wires carry but never conquer — the target must already be yours. That is the
 guardrail that keeps the game a game: with auto-attack the whole match would
 play itself from the first minute.
 
-**Bots lay wires too** (`layWires` in `ai.ts`), and they did not always. The
-claim was that a bot out-orders a player at logistics, so wires only closed the
-clicking gap — but the bot's logistics budget is one order a decision, which
-moves one node one hop, and the gap ran the other way. Measured on a
-thirty-six node empire against a stack it had to grind down: half of it sat at
-capacity for a whole minute, and switching it to wires doubled the damage it
-did, from 3356 to 6780, with no node left idle. Same mechanism for both sides
-means there is no throughput left to tune. `src/ai/logistics.test.ts` guards
-it; a chain of eight nodes does not — one order a decision is enough to keep
-eight moving, and the bug only shows on an empire.
+**Bots still do not use wires, and trying it is instructive.** Giving them the
+player's own mechanism worked on every gameplay measure — the rear flowed, the
+damage doubled — and cost a third of the frame rate: the bots wired nearly
+every node they held, 58 of 60 in a measured match, and `drawWires` clears one
+shared `Graphics` and issues a separate `stroke()` for every dash of every
+wire, every frame. Two wires cost nothing; sixty are most of a frame. Fixing
+the bot's own logistics instead beat wires on all three numbers at once — see
+the budget note in the bot section.
 
 Growth clamps at capacity, so there is never a literal overflow to forward —
 "send on overflow" is realised as "at capacity, send half of what it holds".

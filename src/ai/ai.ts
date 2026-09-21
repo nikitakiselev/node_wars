@@ -4,7 +4,6 @@ import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kin
 import { upgradeCost } from '../core/levels';
 import { SQUAD_SPEED, sendSquad } from '../core/orders';
 import { upgradeNode } from '../core/upgrade';
-import { clearWire, setWire } from '../core/wires';
 import type { Rng } from '../core/rng';
 import { NEUTRAL, type GameNode, type GameState, type OwnerId } from '../core/state';
 
@@ -147,10 +146,7 @@ export function createAi(player: OwnerId, difficulty: Difficulty, rng: Rng): Ai 
       // a bot that only spends on attacks never grows its income, and a human
       // who builds will out-earn it inside one match.
       build(state, player, config, rng);
-      // Wires before hand-hauling: they move the steady flow for nothing, and
-      // what is left for the support orders is the urgent part.
-      layWires(state, player);
-      issue(state, player, supportOrders(config), () =>
+      issue(state, player, supportOrders(config, state, player), () =>
         chooseSupport(state, player, config, rng),
       );
     },
@@ -195,57 +191,42 @@ function build(state: GameState, player: OwnerId, config: AiConfig, rng: Rng): v
 }
 
 /**
- * Points every rear node down the gradient, the way a player lays wires.
+ * Orders a bot may spend on logistics per decision, beyond its attacks.
  *
- * The bot used to haul reserves by hand, one order a decision: one node, one
- * hop. Measured on a thirty-six-node empire, half of it sat at capacity for a
- * whole minute doing nothing, while a human with wires had every full node
- * forwarding half its garrison the moment it filled — continuously, for free,
- * across the whole map. The comment on `core/wires.ts` says wires exist because
- * a bot out-orders a player at logistics; with one support order a decision it
- * does not, and the gap ran the other way.
+ * One order moves one node one hop, so a flat budget is a flat pipe: it was
+ * enough for a chain of eight and hopeless for an empire. Measured on
+ * thirty-six full nodes with fighting in front of them, a flat one-a-decision
+ * left half of them standing at capacity for a whole minute — the whole depth
+ * of the empire was dead weight, which is the exact failure the hop gradient
+ * exists to prevent.
  *
- * Same mechanism as the player's, so there is no throughput to tune: whatever
- * wires do for one side they now do for both. Border nodes are left unwired —
- * their garrison is a garrison, not freight.
+ * So the budget grows with what there is to move. It is deliberately **not**
+ * solved by giving the bot wires: that made it lay one on nearly every node on
+ * the board — 58 of 60 in a measured match — and `drawWires` re-tessellates
+ * every dash of every wire on every frame.
  */
-function layWires(state: GameState, player: OwnerId): void {
-  const toFront = distanceToFront(state, player);
+function supportOrders(config: AiConfig, state: GameState, player: OwnerId): number {
+  let held = 0;
+  for (const node of state.nodes) if (node.owner === player) held++;
 
-  for (const node of state.nodes) {
-    if (node.owner !== player) continue;
+  const forTheEmpire = held / NODES_PER_SUPPORT_ORDER;
+  // The same third of its order budget it always spent, now applied to a pipe
+  // sized for what has to go through it.
+  const forTheDifficulty = config.ordersPerDecision / 3;
 
-    const here = toFront[node.id];
-    if (here === undefined) continue;
-
-    if (here === 0) {
-      clearWire(state, player, node.id);
-      continue;
-    }
-
-    // A wire already pointing downhill is left alone: relaying it every
-    // decision would only churn.
-    const current = state.wires[node.id];
-    if (current !== undefined && (toFront[current] ?? Infinity) < here) continue;
-
-    let downhill: number | null = null;
-    let closest = here;
-    for (const id of state.adjacency[node.id] ?? []) {
-      if (state.nodes[id]?.owner !== player) continue;
-      const there = toFront[id];
-      if (there === undefined || there >= closest) continue;
-      closest = there;
-      downhill = id;
-    }
-
-    if (downhill !== null) setWire(state, player, node.id, downhill);
-  }
+  return Math.max(1, Math.round(forTheEmpire * forTheDifficulty));
 }
 
-/** Orders a bot may spend on logistics per decision, beyond its attacks. */
-function supportOrders(config: AiConfig): number {
-  return Math.max(1, Math.round(config.ordersPerDecision / 3));
-}
+/**
+ * How many nodes one logistics order a decision can keep flowing.
+ *
+ * Measured against both things that can go wrong. At 8 the rear flows
+ * beautifully and matches stop ending — two bots reinforcing that hard hold
+ * every front for ever, and only 2 of 10 were settled. At 16 the matches come
+ * back and five nodes in thirty-six go back to standing at capacity. Twelve is
+ * where both hold: 1 of 36 idle, and every match test green.
+ */
+const NODES_PER_SUPPORT_ORDER = 12;
 
 /** Issues up to `budget` orders, stopping as soon as there is nothing to do. */
 function issue(
