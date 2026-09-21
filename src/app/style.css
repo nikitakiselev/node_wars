@@ -363,6 +363,40 @@ button,
 }
 
 /*
+ * A solid strip behind the clock and the scoreboard.
+ *
+ * The status bar is drawn over the board rather than beside it, and once the
+ * player zooms in, nodes pan up underneath it — a clock over a node is
+ * unreadable, and so is the node. The strip runs from the top of the screen to
+ * the bottom of the scoreboard and then fades, so there is no seam across an
+ * edge that happens to be passing.
+ *
+ * Its height is --hud-top, measured in main.ts alongside the board's insets:
+ * the scoreboard grows a line when enough players are seated, and a guess here
+ * would be wrong exactly then.
+ */
+:root.touch .hud::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--hud-top, 0px) + 20px);
+  background: linear-gradient(
+    var(--water-deep) 0,
+    var(--water-deep) var(--hud-top, 0px),
+    rgba(4, 18, 26, 0) 100%
+  );
+  pointer-events: none;
+}
+
+/* The strip is positioned, so the scoreboard has to be too, or it paints
+   underneath the very thing that exists to sit behind it. */
+:root.touch [data-hud-top] {
+  position: relative;
+}
+
+/*
  * One column, one width.
  *
  * A primary button on its own line above a row of three reads as two separate

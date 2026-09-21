@@ -81,6 +81,10 @@ function fitBoard(): void {
   const top = hudTop.getBoundingClientRect();
   const bottom = hudBottom.getBoundingClientRect();
 
+  // The strip that keeps the clock and the scoreboard off the board is drawn
+  // to the same measurement.
+  hudFrame.style.setProperty('--hud-top', `${Math.round(top.bottom)}px`);
+
   renderer.setInsets({
     top: top.bottom + BOARD_GAP,
     bottom: Math.max(0, window.innerHeight - bottom.top) + BOARD_GAP,

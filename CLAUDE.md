@@ -155,8 +155,12 @@ The bottom safe-area band is deliberately **not** reserved: iOS keeps about
 34pt for the home indicator, which draws over whatever is under it and stays
 legible on a dark board, so giving it a band of its own only throws the room
 away. What is left is a 14pt margin, enough to keep the indicator off the face
-of the button. The top inset is honoured — the status bar is opaque, and the
-scoreboard has to clear the clock.
+of the button. The top is the opposite case: the status bar is drawn over the
+board, so the strip behind the clock and the scoreboard is painted solid down
+to `--hud-top` — the same measurement the board's insets are taken from — and
+then faded, since a zoomed-in board pans nodes up underneath both. The strip is
+positioned, so the scoreboard is given `position: relative` as well; otherwise
+it paints under the very thing meant to sit behind it.
 
 On a phone the footer holds **one** button, «Меню», and everything else —
 rules, a new match, saving, the seed — lives behind it on the pause screen,
