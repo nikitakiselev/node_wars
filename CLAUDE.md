@@ -337,6 +337,15 @@ dragging removes — it looks like the board is cut off. The renderer applies `c
 world container, so `toWorld` and `toScreen` keep working without knowing
 anything about zoom.
 
+## When it does not start
+
+`main.ts` registers `error` and `unhandledrejection` handlers **before** it
+touches Pixi, and anything they catch is written on screen. The board is a
+canvas: code that never runs leaves a black rectangle and an empty HUD, which
+looks exactly like a game that does not work, and says nothing to the player or
+to whoever has to fix it. A failure inside the very first `await` has to land
+there too, which is why the handlers come first in the file.
+
 ## Rendering pitfalls
 
 - **Point totals are written with `formatPoints`** (`core/format.ts`), which

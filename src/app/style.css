@@ -1018,6 +1018,55 @@ button,
   white-space: nowrap;
 }
 
+/*
+ * When the game does not start.
+ *
+ * A blank board tells the player nothing and tells whoever has to fix it even
+ * less. Anything thrown before the first frame lands here instead, named.
+ */
+.crash {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 0 26px;
+  background: var(--water-deep);
+  text-align: center;
+}
+
+.crash[hidden] {
+  display: none;
+}
+
+.crash__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.crash__why {
+  margin: 0;
+  max-width: 40ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #8ba2a8;
+  overflow-wrap: anywhere;
+}
+
+.crash__again {
+  border: 1px solid var(--foam);
+  border-radius: 999px;
+  padding: 11px 24px;
+  background: var(--foam);
+  color: var(--water-deep);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* Pressing things
  *
  * A finger has no hover. The only feedback a tap can give is what happens
@@ -1040,7 +1089,8 @@ button,
 .choice span,
 .upgrade button,
 .wire-cut,
-.zoom__thumb {
+.zoom__thumb,
+.crash__again {
   transition:
     transform 90ms ease,
     filter 90ms ease,
@@ -1057,7 +1107,8 @@ button,
 .resume .primary:active,
 .controls button.is-chosen:active,
 .choice input:checked + span:active,
-.upgrade button:not(:disabled):active {
+.upgrade button:not(:disabled):active,
+.crash__again:active {
   transform: scale(0.94);
   filter: brightness(0.86);
 }

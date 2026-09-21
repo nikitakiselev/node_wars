@@ -31,6 +31,33 @@ import { clearSave, describeSave, loadSave, writeSave } from './save';
 import { buildChoices, readChoice } from './settings-form';
 import './style.css';
 
+/*
+ * Anything that stops the game starting says so.
+ *
+ * The board is a canvas: when the code that fills it never runs, what the
+ * player gets is a black rectangle and a HUD with nothing in it, which looks
+ * like a game that simply does not work. Registered before anything else so
+ * that a failure inside the very first await is caught too.
+ */
+const crash = document.querySelector<HTMLElement>('.crash')!;
+const crashWhy = document.querySelector<HTMLElement>('[data-crash]')!;
+
+function reportCrash(reason: unknown): void {
+  const said =
+    reason instanceof Error
+      ? `${reason.name}: ${reason.message}`
+      : String(reason ?? 'причина неизвестна');
+  // The first failure is the one worth reading; later ones are usually its echo.
+  if (crash.hidden) crashWhy.textContent = said;
+  crash.hidden = false;
+}
+
+window.addEventListener('error', (event) => reportCrash(event.error ?? event.message));
+window.addEventListener('unhandledrejection', (event) => reportCrash(event.reason));
+document
+  .querySelector('[data-crash-reload]')!
+  .addEventListener('click', () => window.location.reload());
+
 const app = new Application();
 const boardFrame = document.getElementById('board')!;
 await app.init({
