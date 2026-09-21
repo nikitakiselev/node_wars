@@ -102,8 +102,18 @@
 
         <div class="setup__actions">
           <button type="button" data-help>Правила</button>
-          <button type="submit" value="resume" data-resume-match hidden>Продолжить</button>
           <button type="submit" value="start" class="primary">Начать</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="resume">
+      <form method="dialog">
+        <h1>Найдена сохранённая партия</h1>
+        <p class="note" data-resume-summary></p>
+        <div class="setup__actions resume__actions">
+          <button type="submit" value="resume" class="primary">Продолжить</button>
+          <button type="submit" value="new">Начать новую</button>
         </div>
       </form>
     </dialog>

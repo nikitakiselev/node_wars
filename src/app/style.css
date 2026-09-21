@@ -191,9 +191,10 @@ body {
   }
 }
 
-/* Setup dialog */
+/* Setup dialog, and the prompt that comes before it */
 
-.setup {
+.setup,
+.resume {
   border: 1px solid #1a4049;
   border-radius: 16px;
   padding: 0;
@@ -204,17 +205,20 @@ body {
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
 }
 
-.setup::backdrop {
+.setup::backdrop,
+.resume::backdrop {
   background: rgba(4, 18, 26, 0.78);
 }
 
-.setup form {
+.setup form,
+.resume form {
   display: grid;
   gap: 20px;
   padding: 26px 28px 24px;
 }
 
-.setup h1 {
+.setup h1,
+.resume h1 {
   margin: 0;
   font-size: 26px;
   font-weight: 800;
@@ -290,7 +294,8 @@ body {
   justify-content: flex-end;
 }
 
-.setup .primary {
+.setup .primary,
+.resume .primary {
   border: 1px solid var(--foam);
   border-radius: 999px;
   padding: 10px 26px;
@@ -301,7 +306,8 @@ body {
   cursor: pointer;
 }
 
-.setup .primary:focus-visible {
+.setup .primary:focus-visible,
+.resume .primary:focus-visible {
   outline: 2px solid var(--jade);
   outline-offset: 3px;
 }
@@ -423,8 +429,7 @@ body {
   gap: 10px;
 }
 
-.setup__actions button[data-resume-match],
-.setup__actions button[data-help] {
+.setup__actions button:not(.primary) {
   border: 1px solid #1a4049;
   border-radius: 999px;
   padding: 9px 18px;
@@ -435,8 +440,14 @@ body {
   cursor: pointer;
 }
 
-.setup__actions button[data-resume-match][hidden] {
-  display: none;
+/*
+ * The primary button comes first in the markup so that Enter continues the
+ * saved match rather than throwing it away, and last on screen, where a
+ * primary button belongs.
+ */
+.resume__actions {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
 }
 
 /* Pause */

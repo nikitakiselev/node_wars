@@ -162,10 +162,18 @@ new field on a node, a rule that reads state an older build never wrote. A save
 from another version is refused outright rather than loaded into a game that
 would misread it, and so is anything truncated or unparseable.
 
-Two things worth knowing. JSON has no holes, so `wires` comes back full of
+A save is what the player is asked about first: with one in storage the game
+opens the resume prompt, and the setup dialog is reached only by turning that
+offer down. With nothing saved there is nothing to ask, so setup opens
+straight away.
+
+Three things worth knowing. JSON has no holes, so `wires` comes back full of
 nulls and has to be revived — a wire of null is not the same as no wire.
-And a resumed match gets fresh bots: a save keeps the board, not the
-opponents' train of thought.
+A resumed match gets fresh bots: a save keeps the board, not the
+opponents' train of thought. And the board behind the setup dialog is a
+preview of a match nobody started, so `saveNow` refuses to write while a
+dialog is open — leaving the page there used to overwrite the real save with
+a board the player had never played.
 
 Saving runs off the render loop, which stops when the game is paused or the tab
 is hidden — exactly when a tab tends to get closed — so `pagehide` and

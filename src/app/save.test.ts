@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { setWire } from '../core/wires';
-import { Match, defaultSettings } from './match';
-import { SAVE_VERSION, clearSave, loadSave, writeSave } from './save';
+import { HUMAN, Match, defaultSettings } from './match';
+import { SAVE_VERSION, clearSave, describeSave, loadSave, writeSave } from './save';
 
 /** localStorage without a browser. */
 function storage(): Storage {
@@ -126,5 +126,19 @@ describe('a save that cannot be used', () => {
     };
 
     expect(() => writeSave(full, played())).not.toThrow();
+  });
+});
+
+describe('describing a save', () => {
+  test('names the map and how much of it is yours', () => {
+    const where = storage();
+    const match = played();
+    writeSave(where, match);
+
+    const line = describeSave(loadSave(where)!);
+
+    const mine = match.state.nodes.filter((node) => node.owner === HUMAN).length;
+    expect(line).toContain(String(match.settings.seed));
+    expect(line).toContain(`${mine} из ${match.state.nodes.length}`);
   });
 });

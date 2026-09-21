@@ -1,5 +1,5 @@
 import type { GameState } from '../core/state';
-import type { Match, MatchSettings } from './match';
+import { HUMAN, type Match, type MatchSettings } from './match';
 
 /**
  * Format of a saved match.
@@ -59,6 +59,17 @@ export function loadSave(storage: Storage): SavedMatch | null {
     settings: raw['settings'] as unknown as MatchSettings,
     state: reviveState(state),
   };
+}
+
+/**
+ * One line telling the player which match this is.
+ *
+ * A save is offered before anything is on screen, so "continue" has to mean
+ * something on its own: the map it was played on, and how far along it was.
+ */
+export function describeSave(saved: SavedMatch): string {
+  const mine = saved.state.nodes.filter((node) => node.owner === HUMAN).length;
+  return `Карта ${saved.settings.seed} · ваших узлов ${mine} из ${saved.state.nodes.length}`;
 }
 
 export function clearSave(storage: Storage): void {

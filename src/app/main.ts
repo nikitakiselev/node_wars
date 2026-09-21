@@ -25,7 +25,7 @@ import {
 } from './match';
 import { renderHelp } from './help';
 import { readOptions } from './options';
-import { clearSave, loadSave, writeSave } from './save';
+import { clearSave, describeSave, loadSave, writeSave } from './save';
 import { buildChoices, readChoice } from './settings-form';
 import './style.css';
 
@@ -73,15 +73,19 @@ hud.cutWire.addEventListener('click', () => {
 /**
  * The board runs only when nothing is covering it.
  *
- * Two separate things stop the clock — the setup dialog and a pause — so one
+ * Three separate things stop the clock — either dialog and a pause — so one
  * place decides, rather than each of them calling start and stop and fighting
  * over who spoke last.
  */
 let paused = false;
 
+function covered(): boolean {
+  return dialog.open || resumeDialog.open;
+}
+
 function updateRunning(): void {
-  const blocked = dialog.open || paused;
-  hud.pause.hidden = !paused || dialog.open;
+  const blocked = covered() || paused;
+  hud.pause.hidden = !paused || covered();
 
   if (blocked) {
     app.ticker.stop();
@@ -129,7 +133,7 @@ if (options.autoPause) {
 window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
   // A dialog handles Escape itself; two owners would fight over it.
-  if (dialog.open || helpDialog.open) return;
+  if (covered() || helpDialog.open) return;
   event.preventDefault();
   setPaused(!paused);
 });
@@ -144,7 +148,8 @@ hud.upgradeButton.addEventListener('click', () => {
 
 const dialog = document.querySelector<HTMLDialogElement>('.setup')!;
 const setupForm = dialog.querySelector('form')!;
-const resumeButton = dialog.querySelector<HTMLButtonElement>('[data-resume-match]')!;
+const resumeDialog = document.querySelector<HTMLDialogElement>('.resume')!;
+const resumeSummary = resumeDialog.querySelector<HTMLElement>('[data-resume-summary]')!;
 
 let settings: MatchSettings = { ...defaultSettings(), seed: randomSeed() };
 let match = new Match(settings);
@@ -171,8 +176,30 @@ const controls = new PointerControls(
 );
 
 buildSettingsForm();
-showMatch(match);
-openSettings();
+openStart();
+
+/**
+ * What the player is asked on the way in.
+ *
+ * A match left in storage is offered first and on its own: someone coming
+ * back to a game wants to come back to it, not to fill in a form about a
+ * different one. Setting a new match up is what the setup dialog is for, and
+ * with nothing saved it is all there is to ask.
+ */
+function openStart(): void {
+  const saved = loadSave(window.localStorage);
+  if (!saved) {
+    openSettings();
+    return;
+  }
+
+  // The board behind the prompt is the saved one, so "continue" shows you
+  // what you would be continuing.
+  showMatch(new Match(saved.settings, saved.state));
+  resumeSummary.textContent = describeSave(saved);
+  resumeDialog.showModal();
+  updateRunning();
+}
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 1_000_000);
@@ -217,9 +244,6 @@ let lastSaved = 0;
 
 function openSettings(): void {
   resumed = match;
-  // Offer to go back to the saved match only if there is one this build can
-  // read; a save from another version is no use here.
-  resumeButton.hidden = loadSave(window.localStorage) === null;
   // The board behind the dialog is the board you are about to play, so every
   // change to the form redraws it on one fixed seed: only the setting you
   // touched moves, not the whole map.
@@ -235,8 +259,22 @@ setupForm.addEventListener('change', () => {
 // Escape closes a <dialog> by default. On the very first visit that would
 // drop the player into a match they never started, so it is refused until
 // one has been.
-dialog.addEventListener('cancel', (event) => {
-  if (!started) event.preventDefault();
+for (const sheet of [dialog, resumeDialog]) {
+  sheet.addEventListener('cancel', (event) => {
+    if (!started) event.preventDefault();
+  });
+}
+
+resumeDialog.addEventListener('close', () => {
+  // Turning the saved match down is the only way into the setup dialog from
+  // here; the saved board is already on screen for the other answer.
+  if (resumeDialog.returnValue !== 'resume') {
+    openSettings();
+    return;
+  }
+  started = true;
+  paused = false;
+  updateRunning();
 });
 
 dialog.addEventListener('close', () => {
@@ -244,14 +282,6 @@ dialog.addEventListener('close', () => {
   // preview was only ever a preview.
   if (dialog.returnValue === 'start') {
     started = true;
-  } else if (dialog.returnValue === 'resume') {
-    const saved = loadSave(window.localStorage);
-    if (saved) {
-      showMatch(new Match(saved.settings, saved.state));
-      started = true;
-    } else {
-      showMatch(resumed);
-    }
   } else {
     showMatch(resumed);
   }
@@ -430,6 +460,11 @@ function keepSaved(): void {
 }
 
 function saveNow(): void {
+  // The board behind the setup dialog is a preview of a match nobody has
+  // started. Writing it down — and leaving the page does write it down —
+  // would throw away the match the player actually left in storage.
+  if (!started || covered()) return;
+
   if (match.state.winner !== null || isEliminated(match.state, HUMAN)) {
     clearSave(window.localStorage);
     return;
