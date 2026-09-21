@@ -3,7 +3,7 @@ import { BRIDGE, buildIslandLayout, scatterIslands } from './islands';
 import { MAX_LEVEL, applyLevel, capacityForLevel, radiusForLevel } from './levels';
 import type { Point } from './poisson';
 import { createRng, type Rng } from './rng';
-import { NEUTRAL, type Edge, type GameNode, type GameState } from './state';
+import { NEUTRAL, type Edge, type GameNode, type GameState, type NodeKind } from './state';
 
 /** Points both players open with, identical so neither starts ahead. */
 export const START_POINTS = 25;
@@ -31,6 +31,8 @@ const LARGEST_RADIUS = radiusForLevel(MAX_LEVEL);
 /** One farm per this many interior nodes, so every island earns something. */
 const NODES_PER_FARM = 5;
 const MAX_FARMS_PER_ISLAND = 3;
+const NODES_PER_BATTERY = 7;
+const MAX_BATTERIES_PER_ISLAND = 2;
 
 /** Default share of its capacity an unclaimed node defends with. */
 export const DEFAULT_NEUTRAL_GARRISON = 0.35;
@@ -196,8 +198,10 @@ function weightedStartLevel(rng: Rng): number {
  * Puts the terrain where the shape of the board says it belongs.
  *
  * Every bridge is a fortress: the crossing between two islands should be a
- * place you have to take, not a place you walk through. Farms go inside
- * islands, so an island is worth holding and not merely worth passing.
+ * place you have to take, not a place you walk through. Farms and batteries go
+ * inside islands, so an island is worth holding and not merely worth passing —
+ * a farm for what it earns you, a battery for what it costs whoever is on the
+ * other side of it.
  */
 function placeKinds(state: GameState, bridges: readonly number[], rng: Rng): void {
   for (const id of bridges) state.nodes[id]!.kind = 'fortress';
@@ -208,15 +212,31 @@ function placeKinds(state: GameState, bridges: readonly number[], rng: Rng): voi
     const interior = state.nodes.filter((node) => state.islands[node.id] === island);
     if (interior.length === 0) continue;
 
-    const wanted = Math.min(
-      MAX_FARMS_PER_ISLAND,
-      Math.max(1, Math.round(interior.length / NODES_PER_FARM)),
-    );
-    for (let placed = 0; placed < wanted; placed++) {
-      const choices = interior.filter((node) => node.kind === 'base');
-      if (choices.length === 0) break;
-      choices[rng.range(0, choices.length - 1)]!.kind = 'farm';
-    }
+    scatter(interior, 'farm', MAX_FARMS_PER_ISLAND, NODES_PER_FARM, rng);
+    scatter(interior, 'battery', MAX_BATTERIES_PER_ISLAND, NODES_PER_BATTERY, rng);
+  }
+}
+
+/**
+ * Turns a share of an island's plain nodes into one kind.
+ *
+ * Shared by every kind that is sprinkled rather than placed: how many an
+ * island gets follows its size, so a big island is worth more than a small one
+ * for a reason beyond its node count.
+ */
+function scatter(
+  interior: readonly GameNode[],
+  kind: NodeKind,
+  most: number,
+  nodesEach: number,
+  rng: Rng,
+): void {
+  const wanted = Math.min(most, Math.max(1, Math.round(interior.length / nodesEach)));
+
+  for (let placed = 0; placed < wanted; placed++) {
+    const choices = interior.filter((node) => node.kind === 'base');
+    if (choices.length === 0) return;
+    choices[rng.range(0, choices.length - 1)]!.kind = kind;
   }
 }
 

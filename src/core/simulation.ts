@@ -1,4 +1,5 @@
 import { resolveArrival } from './combat';
+import { applyDrain } from './drain';
 import { applyGrowth } from './growth';
 import { flushWires } from './wires';
 import { NEUTRAL, type GameState, type OwnerId } from './state';
@@ -14,6 +15,8 @@ export function step(state: GameState, dt: number): void {
 
   state.time += dt;
   applyGrowth(state.nodes, dt);
+  // After growth: the nodes earn, and then the batteries take it off them.
+  applyDrain(state, dt);
   flushWires(state);
   advanceSquads(state, dt);
   state.winner = findWinner(state);

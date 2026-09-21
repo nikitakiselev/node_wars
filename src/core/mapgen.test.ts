@@ -17,6 +17,35 @@ function ownedBy(state: GameState, owner: number) {
   return state.nodes.filter((n) => n.owner === owner);
 }
 
+describe('batteries', () => {
+  test('every board has some, and they are not all on one island', () => {
+    for (const seed of [31, 32, 33]) {
+      const state = map(seed);
+      const batteries = state.nodes.filter((n) => n.kind === 'battery');
+
+      expect(batteries.length, `seed ${seed}`).toBeGreaterThan(1);
+      expect(new Set(batteries.map((n) => state.islands[n.id])).size).toBeGreaterThan(1);
+    }
+  });
+
+  test('nobody starts on one', () => {
+    for (const seed of [34, 35]) {
+      const state = map(seed);
+      for (const node of state.nodes) {
+        if (node.owner === NEUTRAL) continue;
+        expect(node.kind, `seed ${seed}`).toBe('base');
+      }
+    }
+  });
+
+  test('a crossing is still a fortress: batteries do not take the bridges', () => {
+    const state = map(36);
+    for (const node of state.nodes) {
+      if (state.islands[node.id] === BRIDGE) expect(node.kind).toBe('fortress');
+    }
+  });
+});
+
 describe('the core, the one node worth crossing the board for', () => {
   test('every board carries exactly one', () => {
     for (const seed of [1, 2, 3, 4, 5]) {

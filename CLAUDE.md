@@ -66,8 +66,8 @@ Upgrades measurably made matches more decisive, not less — 8/10 settled versus
 
 ## Node kinds
 
-`NodeKind` is `base | fortress | farm | core`, rolled independently of size and
-never given to a starting node. A fortress turns away part of an incoming *hostile* force
+`NodeKind` is `base | fortress | farm | core | battery`, rolled independently of
+size and never given to a starting node. A fortress turns away part of an incoming *hostile* force
 (`effectiveAttack` in `combat.ts`); reinforcing your own is never reduced. A
 farm earns faster (`growthRateOf` in `growth.ts`) but holds no more, which
 keeps node size an honest read of the cap.
@@ -81,9 +81,20 @@ minute ten rather than after it. The bot prices it as `1 + (aura - 1) × nodes
 held`, so a bot with three nodes ignores it and a bot with thirty drops
 everything: the same table tunes the rule and the bot together.
 
+A **battery** is the only kind that does anything to a node it does not own:
+while you hold it, it takes points off its strongest **enemy** neighbour every
+step, without an order (`core/drain.ts`, run from `step` right after growth —
+the nodes earn, then the batteries take it off them). It never captures: a node
+it has emptied still belongs to whoever held it, so what a battery buys is
+pressure, not ground. It deliberately leaves **neutral** ground alone, because
+what neutral nodes cost to take is a match setting the player chose in the
+dialog, and a battery that erased it would quietly undo that choice. The bot
+prices it as `1 + drain` only when the node borders an enemy of its own — on a
+border it grinds for free, in the rear it is a node like any other.
+
 All of these scale with level and live in one table, `BY_LEVEL` in
 `core/kinds.ts`: defence 1.2× to 2×, growth 1.4× to 2.5×, aura 1.12× to 1.28×,
-and 1× at every level for a plain node. Only a finished fortress costs double to take. Read
+drain 0.35 to 1.3 points a second, and nothing at any level for a plain node. Only a finished fortress costs double to take. Read
 them through `defenceMultiplier` / `growthMultiplier` rather than hardcoding a
 constant anywhere.
 

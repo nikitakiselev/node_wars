@@ -414,6 +414,19 @@ export class GameRenderer {
       return;
     }
 
+    if (node.kind === 'battery') {
+      // A bolt, outside the gauge: the one kind that does something to a node
+      // it does not own should not look like a quiet one.
+      const r = node.radius;
+      ring
+        .moveTo(node.x - r * 0.34, node.y - r * 1.62)
+        .lineTo(node.x + r * 0.06, node.y - r * 1.3)
+        .lineTo(node.x - r * 0.16, node.y - r * 1.18)
+        .lineTo(node.x + r * 0.3, node.y - r * 0.84)
+        .stroke({ width: 2.5, color: colour, alpha: 0.85 });
+      return;
+    }
+
     if (node.kind !== 'farm') return;
 
     // Rays sit outside the node so they never crowd the number inside it.

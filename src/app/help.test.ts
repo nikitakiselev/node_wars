@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
+import {
+  auraMultiplier,
+  defenceMultiplier,
+  drainRate,
+  growthMultiplier,
+} from '../core/kinds';
 import { MAX_LEVEL, capacityForLevel, upgradeCost } from '../core/levels';
 import { helpSections } from './help';
 
@@ -67,11 +72,13 @@ describe('the rules panel', () => {
     const fortress = table!.rows.find((r) => r[0]!.includes('Крепость'))!;
     const farm = table!.rows.find((r) => r[0]!.includes('Ферма'))!;
     const core = table!.rows.find((r) => r[0]!.includes('Ядро'))!;
+    const battery = table!.rows.find((r) => r[0]!.includes('Батарея'))!;
 
     for (let level = 1; level <= MAX_LEVEL; level++) {
       expect(fortress[level]).toBe(`${defenceMultiplier({ kind: 'fortress', level })}×`);
       expect(farm[level]).toBe(`${growthMultiplier({ kind: 'farm', level })}×`);
       expect(core[level]).toBe(`${auraMultiplier({ kind: 'core', level })}×`);
+      expect(battery[level]).toBe(`${drainRate({ kind: 'battery', level })}`);
     }
   });
 
