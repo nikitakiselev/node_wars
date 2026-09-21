@@ -18,6 +18,48 @@ function letItThink(state: GameState, difficulty: Difficulty = 'normal', seed = 
   return brain;
 }
 
+describe('wires, the way a player hauls reserves', () => {
+  /** Rear — middle — border — enemy. */
+  function line(): GameState {
+    const enemy = makeNode(0, { owner: 0, points: 400 });
+    const border = makeNode(1, { owner: AI_PLAYER, points: 10 });
+    const middle = makeNode(2, { owner: AI_PLAYER, points: 10 });
+    const rear = makeNode(3, { owner: AI_PLAYER, points: 10 });
+
+    return makeState([enemy, border, middle, rear], [
+      [1, 0],
+      [1, 2],
+      [2, 3],
+    ]);
+  }
+
+  test('the rear is pointed at the fighting', () => {
+    const state = line();
+
+    letItThink(state);
+
+    expect(state.wires[3], 'the rear node feeds nothing').toBe(2);
+    expect(state.wires[2], 'the middle node feeds nothing').toBe(1);
+  });
+
+  test('the border is left unwired: a garrison is a garrison', () => {
+    const state = line();
+
+    letItThink(state);
+
+    expect(state.wires[1]).toBeUndefined();
+  });
+
+  test('a wire pointing away from the fighting is turned around', () => {
+    const state = line();
+    state.wires[2] = 3;
+
+    letItThink(state);
+
+    expect(state.wires[2]).toBe(1);
+  });
+});
+
 describe('a stack it cannot take', () => {
   /**
    * The board that came out of a real match: the bot holds a full network, the

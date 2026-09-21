@@ -104,7 +104,9 @@ matches, and undoing any of them brings back matches that never end:
   neither ever gets a fifth ahead, and the match deadlocks with both hoarding.
 - **Reserves flow down a hop-distance gradient to the nearest border**
   (`distanceToFront`). One-hop reinforcement leaves an empire's depth as dead
-  weight — 43 nodes once ground against 9 on even terms.
+  weight — 43 nodes once ground against 9 on even terms. The same gradient
+  points the bot's wires, which is what carries the steady flow; the support
+  orders are left for the urgent part.
 - **Attacks subtract friendly squads already inbound.** Otherwise a second wave
   is spent on a node the first wave has taken.
 - **Logistics has its own order budget**, separate from attacks
@@ -283,8 +285,18 @@ ends are no longer both held by one player.
 
 Wires carry but never conquer — the target must already be yours. That is the
 guardrail that keeps the game a game: with auto-attack the whole match would
-play itself from the first minute. Bots do not use wires; they have the same
-logistics built in, so wires only close the clicking gap.
+play itself from the first minute.
+
+**Bots lay wires too** (`layWires` in `ai.ts`), and they did not always. The
+claim was that a bot out-orders a player at logistics, so wires only closed the
+clicking gap — but the bot's logistics budget is one order a decision, which
+moves one node one hop, and the gap ran the other way. Measured on a
+thirty-six node empire against a stack it had to grind down: half of it sat at
+capacity for a whole minute, and switching it to wires doubled the damage it
+did, from 3356 to 6780, with no node left idle. Same mechanism for both sides
+means there is no throughput left to tune. `src/ai/logistics.test.ts` guards
+it; a chain of eight nodes does not — one order a decision is enough to keep
+eight moving, and the bug only shows on an empire.
 
 Growth clamps at capacity, so there is never a literal overflow to forward —
 "send on overflow" is realised as "at capacity, send half of what it holds".
