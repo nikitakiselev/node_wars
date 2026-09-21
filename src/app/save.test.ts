@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { setWire } from '../core/wires';
-import { HUMAN, Match, defaultSettings } from './match';
+import { HUMAN, Match, boardFor, defaultSettings } from './match';
 import { SAVE_VERSION, clearSave, describeSave, loadSave, writeSave } from './save';
 
 /** localStorage without a browser. */
@@ -62,6 +62,23 @@ describe('saving a match', () => {
     for (const wire of back.state.wires) {
       expect(wire === undefined || typeof wire === 'number').toBe(true);
     }
+  });
+
+  test('a save written before portrait boards existed is still a wide board', () => {
+    // The field was added, not changed: a match saved by an older build has no
+    // "portrait" in its settings, and every one of those was played wide. That
+    // is why this addition does not refuse older saves outright.
+    const where = storage();
+    writeSave(where, played());
+    const raw = JSON.parse(where.getItem('node-wars/save')!);
+    delete raw.settings.portrait;
+    where.setItem('node-wars/save', JSON.stringify(raw));
+
+    const back = loadSave(where)!;
+
+    expect(back).not.toBeNull();
+    const board = boardFor(back.settings);
+    expect(board.width).toBeGreaterThan(board.height);
   });
 
   test('a second save replaces the first', () => {

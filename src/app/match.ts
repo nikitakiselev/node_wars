@@ -58,10 +58,35 @@ export interface MatchSettings {
   aiCount: number;
   /** How well those bots play. */
   difficulty: Difficulty;
+  /** Stands the board on its end, for a screen that is taller than it is wide. */
+  portrait?: boolean;
 }
 
 export function defaultSettings(): MatchSettings {
-  return { seed: 1, mapSize: 'medium', mapDifficulty: 'even', aiCount: 1, difficulty: 'normal' };
+  return {
+    seed: 1,
+    mapSize: 'medium',
+    mapDifficulty: 'even',
+    aiCount: 1,
+    difficulty: 'normal',
+    portrait: false,
+  };
+}
+
+/**
+ * The board a set of settings is played on.
+ *
+ * A phone held upright cannot show a board wider than it is tall without
+ * shrinking the nodes past reading, so the same board is stood on its end:
+ * the same water and the same spacing, turned a quarter. The size tables stay
+ * one-dimensional — a portrait row per size would have to be kept in step with
+ * the landscape one forever.
+ */
+export function boardFor(settings: MatchSettings): { width: number; height: number } {
+  const board = MAP_SIZES[settings.mapSize];
+  return settings.portrait
+    ? { width: board.height, height: board.width }
+    : { width: board.width, height: board.height };
 }
 
 /**
@@ -89,7 +114,7 @@ export class Match {
     const aiCount = clamp(settings.aiCount, 1, MAX_OPPONENTS);
     this.settings = { ...settings, aiCount };
 
-    const board = MAP_SIZES[settings.mapSize];
+    const board = boardFor(settings);
     this.world = { width: board.width, height: board.height };
     this.state = resumed ?? generateMap({
       width: board.width,

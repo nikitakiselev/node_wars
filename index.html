@@ -2,41 +2,56 @@
 <html lang="ru">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Node Wars</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap"
-      rel="stylesheet"
+    <!-- viewport-fit=cover puts the board under the notch; the HUD keeps clear
+         of it with the safe-area insets instead. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
+    <title>Node Wars</title>
+    <meta name="description" content="Захват сети узлов против ботов." />
+    <meta name="theme-color" content="#04121a" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <!-- Standing on the home screen: no browser chrome, and the status bar
+         drawn over the board rather than beside it. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Node Wars" />
+    <link rel="apple-touch-icon" href="icons/icon-180.png" />
+    <link rel="icon" href="icons/icon-192.png" sizes="192x192" />
   </head>
   <body>
     <div id="board"></div>
 
     <div class="hud">
-      <div>
+      <div data-hud-top>
         <div class="tide" data-tide></div>
         <div class="readout" data-readout></div>
       </div>
 
       <div></div>
 
-      <div class="footer">
-        <div>
-          <p class="hint">
-            Тяните от своего узла к соседнему: всё, <kbd>Shift</kbd> — половина,
-            <kbd>Alt</kbd> — четверть.
-          </p>
-          <p class="hint">
-            Правой кнопкой — провод снабжения между своими узлами: наполнившись,
-            узел сам шлёт половину дальше.
-          </p>
-        </div>
-        <div class="controls">
-          <span data-seed></span>
-          <button type="button" data-help>Правила</button>
-          <button type="button" data-open-settings>Новая партия</button>
+      <div class="bottom" data-hud-bottom>
+        <div class="modes" data-choices="sendMode"></div>
+
+        <div class="footer">
+          <div>
+            <p class="hint">
+              Тяните от своего узла к соседнему: всё, <kbd>Shift</kbd> — половина,
+              <kbd>Alt</kbd> — четверть.
+            </p>
+            <p class="hint">
+              Правой кнопкой — провод снабжения между своими узлами: наполнившись,
+              узел сам шлёт половину дальше.
+            </p>
+          </div>
+          <div class="controls">
+            <span data-seed></span>
+            <button type="button" data-pause>Пауза</button>
+            <button type="button" data-help>Правила</button>
+            <button type="button" data-open-settings>Новая партия</button>
+          </div>
         </div>
       </div>
     </div>

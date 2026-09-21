@@ -81,3 +81,38 @@ describe('the rules panel', () => {
     expect(everything).toContain('Esc');
   });
 });
+
+describe('the rules on a touch screen', () => {
+  const touch = helpSections('touch');
+  const everything = touch.flatMap((s) => s.lines).join(' ');
+
+  test('covers exactly the same ground', () => {
+    expect(touch.map((s) => s.title)).toEqual(sections.map((s) => s.title));
+  });
+
+  test('never explains a phone with a mouse it does not have', () => {
+    for (const word of ['Shift', 'Alt', 'Esc', 'мыш', 'Колесо', 'Правой', 'Кликн']) {
+      expect(everything.toLowerCase(), word).not.toContain(word.toLowerCase());
+    }
+  });
+
+  test('names the bar and the gestures a finger uses instead', () => {
+    expect(everything).toContain('Провод');
+    expect(everything).toContain('пальц');
+  });
+
+  test('stays as short as the version written for a mouse', () => {
+    for (const section of touch) {
+      expect(section.lines.length, section.title).toBeLessThanOrEqual(4);
+      for (const line of section.lines) {
+        expect(line.length, line).toBeLessThanOrEqual(100);
+      }
+    }
+  });
+
+  test('keeps the tables, which are the same rules either way', () => {
+    touch.forEach((section, index) => {
+      expect(section.table).toEqual(sections[index]!.table);
+    });
+  });
+});

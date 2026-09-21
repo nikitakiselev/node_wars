@@ -1,3 +1,64 @@
+/*
+ * Manrope, carried in the build rather than fetched from Google.
+ *
+ * A game that is meant to open from the home screen with no network cannot
+ * wait on a font server: the six files below are the two subsets this game
+ * writes in, at the three weights it uses, and nothing else.
+ */
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/manrope-500-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/manrope-500-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/manrope-700-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/manrope-700-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../fonts/manrope-800-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../fonts/manrope-800-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
   --water: #071a20;
   --water-deep: #04121a;
@@ -17,10 +78,21 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
   background: var(--water-deep);
   color: var(--foam);
   font-family: Manrope, system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
+  /* A board is dragged, not selected, and a tap on it is an order, not a link. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+.choice span {
+  /* No double-tap-to-zoom delay on anything the player presses. */
+  touch-action: manipulation;
 }
 
 #board canvas {
@@ -33,7 +105,10 @@ body {
   inset: 0;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  padding: 18px 22px 22px;
+  /* The insets keep the HUD clear of a notch and a home indicator; the board
+     is then fitted to whatever room is left, measured rather than assumed. */
+  padding: calc(18px + env(safe-area-inset-top)) calc(22px + env(safe-area-inset-right))
+    calc(22px + env(safe-area-inset-bottom)) calc(22px + env(safe-area-inset-left));
   pointer-events: none;
 }
 
@@ -178,7 +253,8 @@ body {
 
 @media (max-width: 640px) {
   .hud {
-    padding: 12px 14px 16px;
+    padding: calc(12px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right))
+      calc(12px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
   }
 
   .readout {
@@ -190,6 +266,83 @@ body {
     align-items: flex-start;
   }
 }
+
+/*
+ * The bottom of the screen: what a drag means, and then the small print.
+ *
+ * On a mouse the meaning of a drag is held in a modifier key, so the bar is
+ * not there at all and the hints below explain the keys instead. On a finger
+ * there are no keys, so the bar is the only place the player can read — and
+ * change — what the next drag will do. It sits at the bottom because that is
+ * where a thumb already is.
+ */
+.bottom {
+  display: grid;
+  gap: 12px;
+}
+
+.modes {
+  display: none;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.controls [data-pause] {
+  display: none;
+}
+
+/*
+ * The touch layout, switched on by main.ts rather than by a media query.
+ *
+ * The device usually decides, but ?controls=touch has to be able to overrule
+ * it — a desktop browser never reports a coarse pointer, and the phone layout
+ * would otherwise be unlookable-at without a phone.
+ */
+:root.touch .modes {
+  display: flex;
+}
+
+:root.touch .modes .choice span {
+  min-width: 62px;
+  padding: 13px 18px;
+  font-size: 15px;
+  text-align: center;
+}
+
+/* The keys these describe are not on this device. */
+:root.touch .hint {
+  display: none;
+}
+
+:root.touch .footer {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+:root.touch .controls [data-pause] {
+  display: inline-block;
+}
+
+:root.touch .controls button {
+  padding: 9px 16px;
+  font-size: 14px;
+}
+
+/* Both of these are aimed at with a fingertip rather than a cursor. */
+:root.touch .wire-cut {
+  width: 34px;
+  height: 34px;
+  font-size: 20px;
+}
+
+:root.touch .upgrade button {
+  width: 42px;
+  height: 42px;
+  font-size: 24px;
+}
+
 
 /* Setup dialog, and the prompt that comes before it */
 

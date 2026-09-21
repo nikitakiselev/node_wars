@@ -12,6 +12,7 @@ import {
   MAX_OPPONENTS,
   Match,
   STEP_SECONDS,
+  boardFor,
   defaultSettings,
 } from './match';
 
@@ -218,6 +219,60 @@ describe('match settings', () => {
       m.state.nodes.filter((n) => n.owner === NEUTRAL).reduce((sum, n) => sum + n.points, 0);
 
     expect(neutralPoints(harsh)).toBeGreaterThan(neutralPoints(gentle));
+  });
+});
+
+describe('a portrait board', () => {
+  const base = { ...defaultSettings(), seed: 909 };
+
+  test('is the same board stood on its end', () => {
+    const upright = boardFor({ ...base, mapSize: 'medium', portrait: true });
+
+    expect(upright).toEqual({
+      width: MAP_SIZES.medium.height,
+      height: MAP_SIZES.medium.width,
+    });
+  });
+
+  test('is not what a match gets unless it asks for one', () => {
+    expect(boardFor({ ...base, mapSize: 'medium' })).toEqual({
+      width: MAP_SIZES.medium.width,
+      height: MAP_SIZES.medium.height,
+    });
+  });
+
+  test('holds about as many nodes as the board it was turned from', () => {
+    // Same water, same spacing: standing the board up must not cost the
+    // player a third of the map.
+    const wide = new Match({ ...base, portrait: false });
+    const tall = new Match({ ...base, portrait: true });
+
+    expect(tall.world.height).toBeGreaterThan(tall.world.width);
+    expect(Math.abs(tall.state.nodes.length - wide.state.nodes.length)).toBeLessThanOrEqual(
+      wide.state.nodes.length * 0.25,
+    );
+  });
+
+  test('still seats every allowed number of opponents', () => {
+    for (let aiCount = 1; aiCount <= MAX_OPPONENTS; aiCount++) {
+      for (const seed of [11, 12, 13]) {
+        const match = new Match({ ...base, seed, aiCount, portrait: true });
+        const owners = new Set(match.state.nodes.map((n) => n.owner));
+
+        expect(owners.size, `${aiCount} bots, seed ${seed}`).toBe(aiCount + 2);
+      }
+    }
+  });
+
+  test('keeps every node on the board', () => {
+    const match = new Match({ ...base, portrait: true });
+
+    for (const node of match.state.nodes) {
+      expect(node.x).toBeGreaterThanOrEqual(0);
+      expect(node.y).toBeGreaterThanOrEqual(0);
+      expect(node.x).toBeLessThanOrEqual(match.world.width);
+      expect(node.y).toBeLessThanOrEqual(match.world.height);
+    }
   });
 });
 

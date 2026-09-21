@@ -9,6 +9,7 @@ import type { GameNode } from '../core/state';
 import { upgradeNode } from '../core/upgrade';
 import { clearWire } from '../core/wires';
 import { standingsFor } from '../core/standings';
+import { SEND_MODES, type SendMode } from '../input/fractions';
 import { PointerControls } from '../input/pointer';
 import { GameRenderer } from '../render/renderer';
 import { COLORS, factionOf } from '../render/theme';
@@ -46,7 +47,50 @@ app.ticker.maxFPS = 60;
 
 const renderer = new GameRenderer(app, WORLD.width, WORLD.height);
 renderer.layout();
-app.renderer.on('resize', () => renderer.layout());
+app.renderer.on('resize', fitBoard);
+
+const options = readOptions(window.location.search);
+
+/**
+ * Whether the player is pointing with a finger rather than a cursor.
+ *
+ * Read once: a device does not grow a mouse mid-match, and the answer decides
+ * both which half of the controls the game explains and which of them it lays
+ * out — the stylesheet keys off this class rather than asking the device
+ * itself, so that ?controls=touch can overrule it.
+ */
+const touchPlayer =
+  options.controls === 'auto'
+    ? window.matchMedia('(pointer: coarse)').matches
+    : options.controls === 'touch';
+document.documentElement.classList.toggle('touch', touchPlayer);
+
+const hudFrame = document.querySelector<HTMLElement>('.hud')!;
+const hudTop = document.querySelector<HTMLElement>('[data-hud-top]')!;
+const hudBottom = document.querySelector<HTMLElement>('[data-hud-bottom]')!;
+
+/**
+ * Hands the board whatever room the HUD is not using.
+ *
+ * Measured rather than assumed, because the top block grows with the number of
+ * players and the bottom one with the mode bar — and on a phone both of them
+ * sit inside safe-area padding whose size only the browser knows.
+ */
+function fitBoard(): void {
+  const padding = getComputedStyle(hudFrame);
+  const top = hudTop.getBoundingClientRect();
+  const bottom = hudBottom.getBoundingClientRect();
+
+  renderer.setInsets({
+    top: top.bottom + BOARD_GAP,
+    bottom: Math.max(0, window.innerHeight - bottom.top) + BOARD_GAP,
+    left: parseFloat(padding.paddingLeft) || 0,
+    right: parseFloat(padding.paddingRight) || 0,
+  });
+}
+
+/** Breathing room between the HUD and the nearest node. */
+const BOARD_GAP = 12;
 
 const hud = {
   tide: document.querySelector<HTMLElement>('[data-tide]')!,
@@ -101,7 +145,10 @@ function setPaused(next: boolean): void {
 }
 
 const helpDialog = document.querySelector<HTMLDialogElement>('.help')!;
-renderHelp(helpDialog.querySelector<HTMLElement>('[data-help-body]')!);
+renderHelp(
+  helpDialog.querySelector<HTMLElement>('[data-help-body]')!,
+  touchPlayer ? 'touch' : 'mouse',
+);
 
 // One panel, three ways in: the footer, the setup dialog and the pause screen.
 for (const button of document.querySelectorAll('[data-help]')) {
@@ -109,6 +156,9 @@ for (const button of document.querySelectorAll('[data-help]')) {
 }
 
 document.querySelector('[data-resume]')!.addEventListener('click', () => setPaused(false));
+
+// Escape pauses on a keyboard; a phone has no Escape, so it has a button.
+document.querySelector('[data-pause]')!.addEventListener('click', () => setPaused(true));
 
 // The game saves itself, but a player wants to see that it has.
 const saveButton = document.querySelector<HTMLButtonElement>('[data-save-now]')!;
@@ -122,7 +172,6 @@ saveButton.addEventListener('click', () => {
 
 // Leaving the window pauses: a real-time game running unwatched is just a game
 // being lost. Automated runs want the opposite, hence ?autopause=off.
-const options = readOptions(window.location.search);
 if (options.autoPause) {
   window.addEventListener('blur', () => setPaused(true));
   document.addEventListener('visibilitychange', () => {
@@ -151,13 +200,37 @@ const setupForm = dialog.querySelector('form')!;
 const resumeDialog = document.querySelector<HTMLDialogElement>('.resume')!;
 const resumeSummary = resumeDialog.querySelector<HTMLElement>('[data-resume-summary]')!;
 
-let settings: MatchSettings = { ...defaultSettings(), seed: randomSeed() };
+let settings: MatchSettings = {
+  ...defaultSettings(),
+  seed: randomSeed(),
+  portrait: portraitScreen(),
+};
 let match = new Match(settings);
 let seats: { bar: HTMLElement; nodes: HTMLElement; points: HTMLElement }[] = [];
 /** The match to return to if the setup dialog is dismissed without starting. */
 let resumed: Match = match;
 /** Until the first match is started there is nothing to dismiss the dialog to. */
 let started = false;
+
+/**
+ * What a bare drag means, for a player with no modifier keys.
+ *
+ * Sticky and on screen rather than held down: a finger cannot hold Shift, and
+ * a player should be able to read what the next drag will do before making it.
+ * A modifier still wins over this, so a mouse plays exactly as it did.
+ */
+let sendMode: SendMode = 'all';
+const modeBar = document.querySelector<HTMLElement>('[data-choices="sendMode"]')!;
+buildChoices(document, 'sendMode', SEND_MODES, sendMode);
+
+modeBar.addEventListener('change', () => {
+  sendMode = (readChoice(modeBar, 'sendMode') || 'all') as SendMode;
+  // Wiring and upgrading are different questions about the same node; leaving
+  // the + hanging over it while the bar says "провод" only confuses matters.
+  controls.clearSelection();
+  paintOverlays();
+  app.render();
+});
 
 const controls = new PointerControls(
   {
@@ -173,10 +246,29 @@ const controls = new PointerControls(
     renderer.draw(match.state, match.alpha, STEP_SECONDS, controls.hint);
     app.render();
   },
+  () => sendMode,
 );
 
 buildSettingsForm();
+fitBoard();
 openStart();
+registerWorker();
+
+/**
+ * Keeps the game on the phone rather than on the network.
+ *
+ * Added to the home screen it is expected to open in a tunnel or on a plane,
+ * and a match lives in local storage already — the only thing that needed the
+ * network was fetching the game itself.
+ */
+function registerWorker(): void {
+  if (!('serviceWorker' in navigator) || !import.meta.env.PROD) return;
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {
+      // An unregistered worker costs offline play and nothing else.
+    });
+  });
+}
 
 /**
  * What the player is asked on the way in.
@@ -203,6 +295,18 @@ function openStart(): void {
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 1_000_000);
+}
+
+/**
+ * Whether the board should be stood on its end.
+ *
+ * A phone held upright cannot show a board wider than it is tall without
+ * shrinking the nodes past reading, so the shape of the screen decides the
+ * shape of the world. Turning the phone afterwards does not redraw the match:
+ * the board you are playing is the board you started.
+ */
+function portraitScreen(): boolean {
+  return window.innerHeight > window.innerWidth;
 }
 
 function buildSettingsForm(): void {
@@ -235,6 +339,7 @@ function settingsFromForm(seed: number): MatchSettings {
     mapDifficulty: readChoice(dialog, 'mapDifficulty') as MatchSettings['mapDifficulty'],
     aiCount: Number(readChoice(dialog, 'aiCount')),
     difficulty: readChoice(dialog, 'difficulty') as Difficulty,
+    portrait: portraitScreen(),
   };
 }
 
@@ -309,6 +414,8 @@ function showMatch(next: Match): void {
   // Drawing the scene is not the same as putting it on the canvas: while the
   // ticker is paused for the dialog, nothing else will.
   controls.clearSelection();
+  // The scoreboard just changed height, so the board's room has changed with it.
+  fitBoard();
   renderer.draw(match.state, 0, STEP_SECONDS, controls.hint);
   paintHud();
   paintOverlays();

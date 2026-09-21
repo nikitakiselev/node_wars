@@ -14,13 +14,23 @@ export interface HelpSection {
 
 const LEVELS = Array.from({ length: MAX_LEVEL }, (_, index) => index + 1);
 
+/** What the player has in their hand. */
+export type Controls = 'mouse' | 'touch';
+
 /**
  * The rules, short enough to read standing up.
  *
  * Every number here is read from the tables the game actually plays by, so
  * tuning the balance cannot leave the help saying something else.
+ *
+ * The rules themselves are one set; only the sentences about how to give an
+ * order differ, because a phone has no right button, no modifier keys and no
+ * Escape. Telling a player to right-click on a screen with no mouse is the
+ * same kind of lie as a stale number, so the panel asks which it is talking to.
  */
-export function helpSections(): HelpSection[] {
+export function helpSections(controls: Controls = 'mouse'): HelpSection[] {
+  const touch = controls === 'touch';
+
   return [
     {
       title: 'Цель',
@@ -29,8 +39,12 @@ export function helpSections(): HelpSection[] {
     {
       title: 'Атака',
       lines: [
-        'Тяните от своего узла к соседнему.',
-        'Перетаскивание — все очки, Shift — половина, Alt — четверть.',
+        touch
+          ? 'Ведите пальцем от своего узла к соседнему.'
+          : 'Тяните от своего узла к соседнему.',
+        touch
+          ? 'Сколько отправить — «Всё», «½» или «¼» — выбирается на полосе внизу.'
+          : 'Перетаскивание — все очки, Shift — половина, Alt — четверть.',
         'Атака вровень с обороной узел не берёт: нужен хотя бы один лишний отряд.',
       ],
     },
@@ -38,7 +52,9 @@ export function helpSections(): HelpSection[] {
       title: 'Уровни',
       lines: [
         'Число в узле — очки. Сам он растёт только до потолка, выше — лишь подвозом.',
-        'Кликните свой узел и нажмите +, чтобы поднять потолок. Платит сам узел.',
+        touch
+          ? 'Коснитесь своего узла и нажмите +, чтобы поднять потолок. Платит сам узел.'
+          : 'Кликните свой узел и нажмите +, чтобы поднять потолок. Платит сам узел.',
       ],
       table: {
         head: [],
@@ -69,9 +85,13 @@ export function helpSections(): HelpSection[] {
     {
       title: 'Провода',
       lines: [
-        'Правой кнопкой протяните от своего узла к своему же соседу.',
+        touch
+          ? 'Включите «Провод» на полосе внизу и проведите пальцем к своему же соседу.'
+          : 'Правой кнопкой протяните от своего узла к своему же соседу.',
         'Наполнившись, узел отправит дальше половину, а половину оставит себе.',
-        'Провод из узла один. Наведите на него мышь и нажмите ×, чтобы убрать.',
+        touch
+          ? 'Провод из узла один. Чтобы убрать — коснитесь узла в режиме «Провод».'
+          : 'Провод из узла один. Наведите на него мышь и нажмите ×, чтобы убрать.',
         'Атаковать провод не умеет — куда бить, решаете вы.',
       ],
     },
@@ -83,15 +103,22 @@ export function helpSections(): HelpSection[] {
     },
     {
       title: 'Обзор',
-      lines: [
-        'Колесо мыши приближает и отдаляет — там, где стоит курсор.',
-        'Тянуть карту: средней кнопкой или левой по пустому месту.',
-      ],
+      lines: touch
+        ? [
+            'Карта двигается одним пальцем по пустому месту.',
+            'Двумя пальцами, щипком, — приблизить и отдалить.',
+          ]
+        : [
+            'Колесо мыши приближает и отдаляет — там, где стоит курсор.',
+            'Тянуть карту: средней кнопкой или левой по пустому месту.',
+          ],
     },
     {
       title: 'Пауза и сохранение',
       lines: [
-        'Esc ставит на паузу, и она встаёт сама, когда вы уходите в другое окно.',
+        touch
+          ? 'Кнопка «Пауза» останавливает партию; она встаёт и сама, когда вы уходите.'
+          : 'Esc ставит на паузу, и она встаёт сама, когда вы уходите в другое окно.',
         'Партия сохраняется по ходу дела: «Продолжить» в окне новой партии вернёт её.',
       ],
     },
@@ -99,10 +126,10 @@ export function helpSections(): HelpSection[] {
 }
 
 /** Draws the rules into a host element, replacing whatever was there. */
-export function renderHelp(host: HTMLElement): void {
+export function renderHelp(host: HTMLElement, controls: Controls = 'mouse'): void {
   host.replaceChildren();
 
-  for (const section of helpSections()) {
+  for (const section of helpSections(controls)) {
     const heading = document.createElement('h2');
     heading.textContent = section.title;
     host.appendChild(heading);

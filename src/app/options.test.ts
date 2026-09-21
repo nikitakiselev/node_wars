@@ -26,4 +26,20 @@ describe('readOptions', () => {
     expect(readOptions('?autopause=yes').autoPause).toBe(true);
     expect(readOptions('?other=off').autoPause).toBe(true);
   });
+
+  test('the device decides which controls to show unless told otherwise', () => {
+    expect(readOptions('').controls).toBe('auto');
+  });
+
+  test('controls=touch puts the touch bar on a machine with a mouse', () => {
+    // A desktop browser never reports a coarse pointer, so the phone layout
+    // could not otherwise be looked at without a phone.
+    expect(readOptions('?controls=touch').controls).toBe('touch');
+    expect(readOptions('?controls=mouse').controls).toBe('mouse');
+  });
+
+  test('a controls value nobody recognises is ignored', () => {
+    expect(readOptions('?controls=finger').controls).toBe('auto');
+    expect(readOptions('?controls').controls).toBe('auto');
+  });
 });

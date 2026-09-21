@@ -9,7 +9,7 @@ import {
 } from 'pixi.js';
 import { formatPoints } from '../core/format';
 import { MAX_LEVEL } from '../core/levels';
-import { Camera } from './camera';
+import { Camera, type Insets } from './camera';
 import { NEUTRAL, type GameNode, type GameState, type Squad } from '../core/state';
 import { COLORS, FONT_FAMILY, factionOf } from './theme';
 import { createBrushes, type Brushes } from './textures';
@@ -64,8 +64,14 @@ interface Flash {
 
 const FLASH_SECONDS = 0.55;
 
-/** Screen-space room reserved for the HUD, in CSS pixels. */
-const INSETS = { top: 62, bottom: 52, left: 20, right: 20 } as const;
+/**
+ * Screen-space room reserved for the HUD, in CSS pixels.
+ *
+ * A starting guess only: the real HUD is measured once it is on screen, since
+ * its height moves with the number of players, the mode bar and, on a phone,
+ * whatever the notch and the home indicator take.
+ */
+const INSETS: Insets = { top: 62, bottom: 52, left: 20, right: 20 };
 
 /**
  * Draws the match.
@@ -89,6 +95,7 @@ export class GameRenderer {
 
   private readonly brushes: Brushes;
   private readonly camera = new Camera();
+  private insets: Insets = { ...INSETS };
   private readonly views: NodeView[] = [];
   private readonly streams = new Map<number, Mote[]>();
   private readonly pool: Particle[] = [];
@@ -132,13 +139,19 @@ export class GameRenderer {
     this.layout();
   }
 
+  /** How much of the screen the HUD is covering, measured rather than assumed. */
+  setInsets(insets: Insets): void {
+    this.insets = insets;
+    this.layout();
+  }
+
   /**
    * Fits the board into the space the HUD leaves free, at whatever zoom and
    * offset the player has moved the view to.
    */
   layout(): void {
     const { width, height } = this.app.screen;
-    this.camera.setViewport(width, height, INSETS);
+    this.camera.setViewport(width, height, this.insets);
     this.camera.setWorld(this.worldWidth, this.worldHeight);
 
     const { scale, x, y } = this.camera.transform;

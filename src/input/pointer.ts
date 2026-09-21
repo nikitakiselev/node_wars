@@ -1,8 +1,9 @@
 import { nodeAtPoint, wireAtPoint } from '../core/geometry';
 import { sendSquad } from '../core/orders';
-import type { GameState, OwnerId } from '../core/state';
+import type { GameNode, GameState, OwnerId } from '../core/state';
 import { clearWire, setWire } from '../core/wires';
-import { fractionFor } from './fractions';
+import { fractionFor, type SendMode } from './fractions';
+import { GestureReader, type Gesture } from './gestures';
 import type { DragHint } from '../render/renderer';
 
 interface Surface {
@@ -17,9 +18,15 @@ interface Surface {
 /**
  * Turns pointer gestures into orders.
  *
- * Dragging from one of your nodes to a neighbour attacks it with everything it
- * has; Shift keeps half back, Alt sends only a quarter. Releasing anywhere
- * else cancels, so a misdrag costs nothing.
+ * With a mouse, dragging from one of your nodes to a neighbour attacks it with
+ * everything it has; Shift keeps half back, Alt sends only a quarter, and the
+ * right button lays a supply wire. Releasing anywhere else cancels, so a
+ * misdrag costs nothing.
+ *
+ * A finger has no buttons and no modifiers, so the same drag is read through
+ * a GestureReader and the part a modifier used to say — how much, or whether
+ * this is a wire — is read off the mode bar instead. Both roads meet in the
+ * same private drag: there is one set of rules about what a drag does, not two.
  */
 /** Pointer travel, in world units, still counted as a click rather than a drag. */
 const CLICK_SLOP = 8;
@@ -35,12 +42,16 @@ export class PointerControls {
   private targets = new Set<number>();
   private pressedAt: { x: number; y: number } | null = null;
   private chosen: number | null = null;
-  /** Set while the right button is drawing a supply wire. */
+  /** Set while a drag is laying a supply wire rather than throwing a squad. */
   private wiring = false;
   /** The wire the cursor is resting on, identified by its source node. */
   private hovered: number | null = null;
   /** Where the view was last grabbed, in canvas pixels. */
   private dragging: { x: number; y: number } | null = null;
+
+  private readonly touch = new GestureReader({
+    grabs: (x, y) => this.ownNodeAt(this.surface.toWorld(x, y)) !== null,
+  });
 
   constructor(
     private readonly surface: Surface,
@@ -49,6 +60,8 @@ export class PointerControls {
     /** Called when the selection or the hovered wire changes, so controls can
      * follow at once rather than on the next frame. */
     private readonly onUiChange: () => void = () => {},
+    /** What a bare drag means, for a player with no modifier keys to hold. */
+    private readonly getMode: () => SendMode = () => 'all',
   ) {
     const canvas = surface.canvas;
     canvas.addEventListener('wheel', this.onWheel, { passive: false });
@@ -111,6 +124,12 @@ export class PointerControls {
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
 
+  /** The player's own node under a world point, or null. */
+  private ownNodeAt(point: { x: number; y: number }): GameNode | null {
+    const node = nodeAtPoint(this.getState(), point.x, point.y);
+    return node && node.owner === this.player ? node : null;
+  }
+
   private readonly onWheel = (event: WheelEvent): void => {
     // The page must not scroll out from under the board.
     event.preventDefault();
@@ -120,6 +139,12 @@ export class PointerControls {
   };
 
   private readonly onDown = (event: PointerEvent): void => {
+    if (event.pointerType !== 'mouse') {
+      this.surface.canvas.setPointerCapture(event.pointerId);
+      this.apply(this.touch.down({ id: event.pointerId, ...this.screenAt(event) }));
+      return;
+    }
+
     const state = this.getState();
     const point = this.pointAt(event);
     const node = nodeAtPoint(state, point.x, point.y);
@@ -141,22 +166,17 @@ export class PointerControls {
 
     // The right button lays supply wires, which run between your own nodes;
     // the left one throws squads, which go at everyone else's.
-    this.wiring = event.button === RIGHT_BUTTON;
-    this.hovered = null;
     this.pressedAt = point;
-    this.from = node.id;
-    this.cursor = point;
-    this.targets = new Set(
-      (state.adjacency[node.id] ?? []).filter((id) =>
-        this.wiring
-          ? state.nodes[id]?.owner === this.player
-          : state.nodes[id]?.owner !== this.player,
-      ),
-    );
+    this.beginDrag(node, event.button === RIGHT_BUTTON);
     this.surface.canvas.setPointerCapture(event.pointerId);
   };
 
   private readonly onMove = (event: PointerEvent): void => {
+    if (event.pointerType !== 'mouse') {
+      this.apply(this.touch.move({ id: event.pointerId, ...this.screenAt(event) }));
+      return;
+    }
+
     if (this.dragging) {
       const screen = this.screenAt(event);
       this.surface.panBy(screen.x - this.dragging.x, screen.y - this.dragging.y);
@@ -172,56 +192,156 @@ export class PointerControls {
       return;
     }
 
-    // Resting on a wire brings up its controls; dragging is not the time.
-    const wire = wireAtPoint(this.getState(), point.x, point.y);
-    if (wire === this.hovered) return;
-    this.hovered = wire;
-    this.onUiChange();
+    this.restOn(point);
   };
 
   private readonly onUp = (event: PointerEvent): void => {
+    if (event.pointerType !== 'mouse') {
+      this.apply(this.touch.up(event.pointerId));
+      return;
+    }
+
     if (this.dragging) {
       this.dragging = null;
       return;
     }
     if (this.from === null) return;
 
-    const state = this.getState();
     const point = this.pointAt(event);
-    const target = nodeAtPoint(state, point.x, point.y);
+    const target = nodeAtPoint(this.getState(), point.x, point.y);
 
     // A press and release in the same spot is a click, not a throw: it picks
     // the node out so its controls appear, rather than ordering an attack.
     const travelled = this.pressedAt
       ? Math.hypot(point.x - this.pressedAt.x, point.y - this.pressedAt.y)
       : Infinity;
-    const isClick = travelled <= CLICK_SLOP && target?.id === this.from;
 
-    if (this.wiring) {
-      // A right-click in place takes down the wire the node already has.
-      if (isClick) clearWire(state, this.player, this.from);
-      else if (target && target.id !== this.from) {
-        setWire(state, this.player, this.from, target.id);
-      }
-      this.clear();
-      return;
-    }
-
-    if (isClick) {
-      this.select(this.chosen === this.from ? null : this.from);
-      this.clear();
-      return;
-    }
-
-    if (target && target.id !== this.from) {
-      sendSquad(state, this.player, this.from, target.id, fractionFor(event));
-      this.select(null);
-    }
+    if (travelled <= CLICK_SLOP && target?.id === this.from) this.tapNode(this.from, this.wiring);
+    else this.finishDrag(target, fractionFor(event));
 
     this.clear();
   };
 
-  private readonly onCancel = (): void => this.clear();
+  private readonly onCancel = (event: PointerEvent): void => {
+    if (event.pointerType !== 'mouse') {
+      this.apply(this.touch.cancel(event.pointerId));
+      return;
+    }
+    this.clear();
+  };
+
+  /** Carries out what the fingers asked for. */
+  private apply(gestures: Gesture[]): void {
+    for (const gesture of gestures) {
+      switch (gesture.kind) {
+        case 'dragStart': {
+          const node = this.ownNodeAt(this.surface.toWorld(gesture.x, gesture.y));
+          if (node) this.beginDrag(node, this.getMode() === 'wire');
+          break;
+        }
+        case 'dragMove':
+          if (this.from !== null) this.cursor = this.surface.toWorld(gesture.x, gesture.y);
+          break;
+        case 'dragEnd': {
+          if (this.from === null) break;
+          const point = this.surface.toWorld(gesture.x, gesture.y);
+          const target = nodeAtPoint(this.getState(), point.x, point.y);
+          this.finishDrag(target, fractionFor(NO_KEYS, this.getMode()));
+          this.clear();
+          break;
+        }
+        case 'dragCancel':
+          this.clear();
+          break;
+        case 'tap':
+          this.onTap(this.surface.toWorld(gesture.x, gesture.y));
+          break;
+        case 'pan':
+          this.surface.panBy(gesture.dx, gesture.dy);
+          this.onUiChange();
+          break;
+        case 'pinch':
+          this.surface.zoomAt(gesture.factor, gesture.x, gesture.y);
+          this.onUiChange();
+          break;
+      }
+    }
+  }
+
+  /**
+   * A tap, which is how a finger asks about something rather than orders it.
+   *
+   * On one of your own nodes it picks the node out, or takes its wire down if
+   * the bar is set to wiring. Anywhere else it looks for a wire to rest on,
+   * which is what puts the × within reach of a player who cannot hover.
+   */
+  private onTap(point: { x: number; y: number }): void {
+    const state = this.getState();
+    const node = this.ownNodeAt(point);
+
+    if (node) {
+      this.tapNode(node.id, this.getMode() === 'wire');
+      return;
+    }
+
+    const wire = wireAtPoint(state, point.x, point.y);
+    this.hovered = wire;
+    this.select(null);
+    this.onUiChange();
+  }
+
+  /** Resting on a wire brings up its controls; dragging is not the time. */
+  private restOn(point: { x: number; y: number }): void {
+    const wire = wireAtPoint(this.getState(), point.x, point.y);
+    if (wire === this.hovered) return;
+    this.hovered = wire;
+    this.onUiChange();
+  }
+
+  /** Picks up a node: from here the drag is the same whatever opened it. */
+  private beginDrag(node: GameNode, wiring: boolean): void {
+    const state = this.getState();
+    this.wiring = wiring;
+    this.hovered = null;
+    this.from = node.id;
+    this.cursor = { x: node.x, y: node.y };
+    this.targets = new Set(
+      (state.adjacency[node.id] ?? []).filter((id) =>
+        wiring ? state.nodes[id]?.owner === this.player : state.nodes[id]?.owner !== this.player,
+      ),
+    );
+  }
+
+  /**
+   * A press and release on the same node, by whatever pointer.
+   *
+   * While wiring, the node is being asked to let go of its wire; otherwise it
+   * is being picked out so its controls appear.
+   */
+  private tapNode(nodeId: number, wiring: boolean): void {
+    if (!wiring) {
+      this.select(this.chosen === nodeId ? null : nodeId);
+      return;
+    }
+
+    clearWire(this.getState(), this.player, nodeId);
+    this.hovered = null;
+    this.onUiChange();
+  }
+
+  /** Lets a drag go over a node, or over nothing, which costs nothing. */
+  private finishDrag(target: GameNode | null, fraction: number): void {
+    if (this.from === null || !target || target.id === this.from) return;
+    const state = this.getState();
+
+    if (this.wiring) {
+      setWire(state, this.player, this.from, target.id);
+      return;
+    }
+
+    sendSquad(state, this.player, this.from, target.id, fraction);
+    this.select(null);
+  }
 
   private clear(): void {
     this.dragging = null;
@@ -232,6 +352,9 @@ export class PointerControls {
     this.targets = new Set();
   }
 }
+
+/** A finger holds down nothing; the mode bar speaks for it. */
+const NO_KEYS = { shiftKey: false, altKey: false } as const;
 
 function preventDefault(event: Event): void {
   event.preventDefault();

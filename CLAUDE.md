@@ -120,6 +120,70 @@ inside 20 minutes, because both reinforce continuously. The tests assert what
 is measured — the board is always fully claimed, and an unfinished match is
 lopsided rather than frozen — rather than an ideal.
 
+## Touch, and the phone
+
+`src/input/gestures.ts` turns touches into four intentions — `drag`, `tap`,
+`pan`, `pinch` — and nothing else; `PointerControls` is still the only thing
+that knows what an intention means. The mouse keeps its own branch, because
+buttons and modifiers have no equivalent on glass, but both branches meet in
+one `beginDrag`/`finishDrag`, so there is one set of rules about what a drag
+does rather than two.
+
+Four decisions in there are load-bearing:
+
+- **A finger that lands on your own node drags; anything else pans.** That is
+  what lets one finger mean both things without a mode, and it is the rule the
+  mouse already used.
+- **Thresholds are measured in canvas pixels, never world units.** `CLICK_SLOP`
+  on the mouse path is in world units, so at zoom 4 it is two screen pixels —
+  fine for a cursor, useless for a fingertip.
+- **A second finger cancels the drag it interrupts.** A pinch that threw a
+  garrison at a neighbour would be unforgivable, and a stray second finger is
+  common.
+- **A finger left over from a pinch may pan and nothing else.** Otherwise
+  lifting one finger drops you back into a drag you never started.
+
+What a modifier used to say is read off a sticky bar instead: `SEND_MODES` in
+`fractions.ts` — everything, a half, a quarter, or a wire. A modifier still
+wins over the bar, so a mouse plays exactly as it always did. The bar, the
+pause button and the bigger hit targets are switched on by a `touch` class on
+`<html>`, not by `@media (pointer: coarse)`, because `?controls=touch` has to
+be able to overrule the device — a desktop browser never reports a coarse
+pointer, and the phone layout would otherwise need a phone to look at.
+
+`help.ts` takes the same argument. Telling a player to right-click on a screen
+with no mouse is the same kind of lie as a stale number, so the rules panel
+has a touch wording for every sentence about giving an order — and its tests
+check that the touch version never mentions a key or a button.
+
+The board is stood on its end when the screen is (`boardFor` in `match.ts`):
+the same water and the same spacing, turned a quarter, because a 1.6:1 board
+fitted into a phone held upright draws nodes four pixels wide. The setting
+travels in the save, and a save written before it existed has no `portrait`
+field at all — which reads as landscape, which is what every one of those
+matches was. That is the one kind of change that does **not** need
+`SAVE_VERSION` bumped: a field added whose absence means what it used to.
+
+Camera insets are measured from the HUD rather than assumed
+(`renderer.setInsets`, `fitBoard` in `main.ts`), because the top block grows
+with the number of players, the bottom one with the mode bar, and on a phone
+both sit inside safe-area padding whose size only the browser knows.
+
+## On the home screen
+
+`public/manifest.webmanifest` and `public/sw.js` make it installable and
+openable with no network, which is the whole point of a game you pick up in a
+queue. The worker precaches nothing generated: hashed file names could never be
+kept in step with a list, so it caches what the game asks for, with two rules —
+a hashed asset can never change behind its name and is served from the cache
+for ever, and the page itself is fetched from the network when there is one, so
+that a new build can get in at all.
+
+Two things follow. Manrope is carried in the build (`src/fonts`), not fetched
+from Google, since a game that opens in a tunnel cannot wait on a font server.
+And `scripts/icons.mjs` draws the icons and is run by hand — the PNGs are
+committed, because a build must not depend on a drawing step.
+
 ## Supply wires
 
 `core/wires.ts`. A player can point one of their nodes at an adjacent node
@@ -213,7 +277,8 @@ anything about zoom.
   the whole board every frame and is most of what the game costs.
 - **`?autopause=off` keeps a match running in an unfocused window**, which is
   what automated runs want; `readOptions` in `app/options.ts` parses it.
-  Escape still pauses by hand.
+  Escape still pauses by hand. `?controls=touch` lays the phone controls out on
+  a machine with a mouse, which is the only way to look at them without a phone.
 - **One function owns the clock.** `updateRunning` in `main.ts` decides whether
   the ticker runs, because two separate things stop it — the setup dialog and
   the pause — and letting each call start/stop directly meant whoever spoke
