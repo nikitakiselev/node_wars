@@ -12,11 +12,21 @@
     <meta name="description" content="Захват сети узлов против ботов." />
     <meta name="theme-color" content="#04121a" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <!-- Standing on the home screen: no browser chrome, and the status bar
-         drawn over the board rather than beside it. -->
+    <!--
+      Standing on the home screen: no browser chrome, and the status bar beside
+      the board rather than over it.
+
+      "black" rather than "black-translucent", and the difference is not
+      cosmetic. Translucent lifts the page up under the status bar but does not
+      make it any taller: measured on an iPhone, screen 440×956 against a
+      window of 440×894 — the 62pt of status bar came straight off the bottom,
+      where the board was left cut off above a band nothing could draw into.
+      Opaque puts the page below the status bar, and its bottom reaches the
+      bottom of the glass.
+    -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="Node Wars" />
     <link rel="apple-touch-icon" href="icons/icon-180.png" />
     <link rel="icon" href="icons/icon-192.png" sizes="192x192" />

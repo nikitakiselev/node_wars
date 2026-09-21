@@ -271,6 +271,7 @@ button,
   place-content: center;
   gap: 18px;
   justify-items: center;
+  padding: 0 22px;
   background: rgba(4, 18, 26, 0.82);
   pointer-events: auto;
 }
@@ -281,8 +282,14 @@ button,
 
 .verdict p {
   margin: 0;
-  font-size: clamp(32px, 7vw, 64px);
+  /* A grid track is as wide as its content, so a long verdict pushes past both
+     edges of the screen and reads ragged-left in the middle of it. */
+  max-width: 100%;
+  text-align: center;
+  text-wrap: balance;
+  font-size: clamp(28px, 7vw, 64px);
   font-weight: 800;
+  line-height: 1.1;
   letter-spacing: -0.02em;
 }
 

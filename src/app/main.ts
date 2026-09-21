@@ -171,6 +171,9 @@ function updateRunning(): void {
   hud.pause.hidden = !paused || covered();
   if (!hud.pause.hidden) paintDiagnostics();
 
+  // What floats over the board is paintOverlays' business, not this one's.
+  paintOverlays();
+
   if (blocked) {
     app.ticker.stop();
     return;
@@ -302,6 +305,7 @@ const zoomThumb = document.querySelector<HTMLElement>('[data-zoom-thumb]')!;
 zoomRail.hidden = !touchPlayer;
 
 function paintZoom(): void {
+  zoomRail.hidden = !touchPlayer;
   if (zoomRail.hidden) return;
   // Geometric, so that half way up is half way in: 1, 2, 4 rather than 1, 2.5, 4.
   const fraction = Math.log(renderer.zoom) / Math.log(MAX_ZOOM);
@@ -504,11 +508,30 @@ function showMatch(next: Match): void {
   app.render();
 }
 
-/** Keeps the controls that float over the board where they belong. */
+/**
+ * Keeps the controls that float over the board where they belong.
+ *
+ * All three are drawn after the menu and the verdict in the markup, so they
+ * sit on top of both and stay live: the zoom rail could be dragged straight
+ * through the pause screen. One place decides whether they are on screen at
+ * all, rather than each of them being hidden by whoever thought of it.
+ */
 function paintOverlays(): void {
+  if (covering()) {
+    hud.upgrade.hidden = true;
+    hud.cutWire.hidden = true;
+    zoomRail.hidden = true;
+    return;
+  }
+
   paintUpgradeControl();
   paintWireControl();
   paintZoom();
+}
+
+/** Whether anything is drawn over the board at the moment. */
+function covering(): boolean {
+  return paused || covered() || !hud.verdict.hidden;
 }
 
 /**
