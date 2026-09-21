@@ -9,6 +9,7 @@ import {
 } from 'pixi.js';
 import { formatPoints } from '../core/format';
 import { MAX_LEVEL } from '../core/levels';
+import { Camera } from './camera';
 import { NEUTRAL, type GameNode, type GameState, type Squad } from '../core/state';
 import { COLORS, FONT_FAMILY, factionOf } from './theme';
 import { createBrushes, type Brushes } from './textures';
@@ -87,6 +88,7 @@ export class GameRenderer {
   private readonly labelLayer = new Container();
 
   private readonly brushes: Brushes;
+  private readonly camera = new Camera();
   private readonly views: NodeView[] = [];
   private readonly streams = new Map<number, Mote[]>();
   private readonly pool: Particle[] = [];
@@ -125,28 +127,35 @@ export class GameRenderer {
   setWorld(width: number, height: number): void {
     this.worldWidth = width;
     this.worldHeight = height;
+    this.camera.setWorld(width, height);
+    this.camera.reset();
     this.layout();
   }
 
   /**
-   * Fits the world into the canvas, letterboxed and centred inside the space
-   * the HUD leaves free, so no node ever hides under the scoreboard.
+   * Fits the board into the space the HUD leaves free, at whatever zoom and
+   * offset the player has moved the view to.
    */
   layout(): void {
     const { width, height } = this.app.screen;
-    const available = {
-      width: Math.max(1, width - INSETS.left - INSETS.right),
-      height: Math.max(1, height - INSETS.top - INSETS.bottom),
-    };
-    const scale = Math.min(
-      available.width / this.worldWidth,
-      available.height / this.worldHeight,
-    );
+    this.camera.setViewport(width, height, INSETS);
+    this.camera.setWorld(this.worldWidth, this.worldHeight);
+
+    const { scale, x, y } = this.camera.transform;
     this.world.scale.set(scale);
-    this.world.position.set(
-      INSETS.left + (available.width - this.worldWidth * scale) / 2,
-      INSETS.top + (available.height - this.worldHeight * scale) / 2,
-    );
+    this.world.position.set(x, y);
+  }
+
+  /** Zooms about a point on the canvas, which stays where it is. */
+  zoomAt(factor: number, screenX: number, screenY: number): void {
+    this.camera.zoomAt(factor, screenX, screenY);
+    this.layout();
+  }
+
+  /** Slides the board by a distance in canvas pixels. */
+  panBy(dx: number, dy: number): void {
+    this.camera.panBy(dx, dy);
+    this.layout();
   }
 
   /** Converts a canvas-space point into world coordinates. */

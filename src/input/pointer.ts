@@ -8,6 +8,10 @@ import type { DragHint } from '../render/renderer';
 interface Surface {
   canvas: HTMLCanvasElement;
   toWorld(x: number, y: number): { x: number; y: number };
+  /** Slides the view by a distance in canvas pixels. */
+  panBy(dx: number, dy: number): void;
+  /** Zooms about a point on the canvas. */
+  zoomAt(factor: number, screenX: number, screenY: number): void;
 }
 
 /**
@@ -20,7 +24,10 @@ interface Surface {
 /** Pointer travel, in world units, still counted as a click rather than a drag. */
 const CLICK_SLOP = 8;
 
+const MIDDLE_BUTTON = 1;
 const RIGHT_BUTTON = 2;
+/** How much one notch of the wheel changes the zoom. */
+const WHEEL_STEP = 1.15;
 
 export class PointerControls {
   private from: number | null = null;
@@ -32,6 +39,8 @@ export class PointerControls {
   private wiring = false;
   /** The wire the cursor is resting on, identified by its source node. */
   private hovered: number | null = null;
+  /** Where the view was last grabbed, in canvas pixels. */
+  private dragging: { x: number; y: number } | null = null;
 
   constructor(
     private readonly surface: Surface,
@@ -42,6 +51,7 @@ export class PointerControls {
     private readonly onUiChange: () => void = () => {},
   ) {
     const canvas = surface.canvas;
+    canvas.addEventListener('wheel', this.onWheel, { passive: false });
     canvas.addEventListener('pointerdown', this.onDown);
     canvas.addEventListener('pointermove', this.onMove);
     canvas.addEventListener('pointerup', this.onUp);
@@ -83,6 +93,7 @@ export class PointerControls {
 
   destroy(): void {
     const canvas = this.surface.canvas;
+    canvas.removeEventListener('wheel', this.onWheel);
     canvas.removeEventListener('pointerdown', this.onDown);
     canvas.removeEventListener('pointermove', this.onMove);
     canvas.removeEventListener('pointerup', this.onUp);
@@ -91,16 +102,39 @@ export class PointerControls {
   }
 
   private pointAt(event: PointerEvent) {
-    const rect = this.surface.canvas.getBoundingClientRect();
-    return this.surface.toWorld(event.clientX - rect.left, event.clientY - rect.top);
+    const screen = this.screenAt(event);
+    return this.surface.toWorld(screen.x, screen.y);
   }
+
+  private screenAt(event: PointerEvent | WheelEvent) {
+    const rect = this.surface.canvas.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  private readonly onWheel = (event: WheelEvent): void => {
+    // The page must not scroll out from under the board.
+    event.preventDefault();
+    const screen = this.screenAt(event);
+    this.surface.zoomAt(event.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP, screen.x, screen.y);
+    this.onUiChange();
+  };
 
   private readonly onDown = (event: PointerEvent): void => {
     const state = this.getState();
     const point = this.pointAt(event);
     const node = nodeAtPoint(state, point.x, point.y);
+
+    // The middle button always drags the view; the left one does too when it
+    // lands on open water, where there is nothing else for it to mean.
+    if (event.button === MIDDLE_BUTTON || (!node && event.button !== RIGHT_BUTTON)) {
+      this.dragging = this.screenAt(event);
+      this.surface.canvas.setPointerCapture(event.pointerId);
+      this.select(null);
+      return;
+    }
+
     if (!node || node.owner !== this.player) {
-      // A press on empty ground puts the selection away.
+      // A press on somebody else's node puts the selection away.
       this.select(null);
       return;
     }
@@ -123,6 +157,14 @@ export class PointerControls {
   };
 
   private readonly onMove = (event: PointerEvent): void => {
+    if (this.dragging) {
+      const screen = this.screenAt(event);
+      this.surface.panBy(screen.x - this.dragging.x, screen.y - this.dragging.y);
+      this.dragging = screen;
+      this.onUiChange();
+      return;
+    }
+
     const point = this.pointAt(event);
 
     if (this.from !== null) {
@@ -138,6 +180,10 @@ export class PointerControls {
   };
 
   private readonly onUp = (event: PointerEvent): void => {
+    if (this.dragging) {
+      this.dragging = null;
+      return;
+    }
     if (this.from === null) return;
 
     const state = this.getState();
@@ -178,6 +224,7 @@ export class PointerControls {
   private readonly onCancel = (): void => this.clear();
 
   private clear(): void {
+    this.dragging = null;
     this.wiring = false;
     this.from = null;
     this.cursor = null;

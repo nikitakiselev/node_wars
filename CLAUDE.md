@@ -146,6 +146,16 @@ capacities, upgrade costs, the fortress and farm multipliers — is read from
 the tables the game plays by, so tuning balance cannot leave the help saying
 something else. Its tests assert exactly that, plus that it stays short.
 
+## The camera
+
+`render/camera.ts` owns where the board sits on screen and is deliberately free
+of Pixi, because the arithmetic is the part that goes wrong. Zoom 1 is the
+whole board fitted inside the HUD insets and is also the floor — there is
+nothing outside the board to look at — and panning is clamped so it can never
+be dragged into empty space. The renderer applies `camera.transform` to its
+world container, so `toWorld` and `toScreen` keep working without knowing
+anything about zoom.
+
 ## Rendering pitfalls
 
 - **Point totals are written with `formatPoints`** (`core/format.ts`), which

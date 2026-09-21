@@ -9,7 +9,16 @@ describe('the rules panel', () => {
   test('covers what a new player has to be told', () => {
     const titles = sections.map((s) => s.title).join(' ').toLowerCase();
 
-    for (const topic of ['цель', 'атак', 'уровн', 'тип', 'провод', 'захват', 'пауз']) {
+    for (const topic of [
+      'цель',
+      'атак',
+      'уровн',
+      'тип',
+      'провод',
+      'захват',
+      'обзор',
+      'пауз',
+    ]) {
       expect(titles, topic).toContain(topic);
     }
   });

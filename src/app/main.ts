@@ -143,7 +143,12 @@ let resumed: Match = match;
 let started = false;
 
 const controls = new PointerControls(
-  { canvas: app.canvas, toWorld: (x, y) => renderer.toWorld(x, y) },
+  {
+    canvas: app.canvas,
+    toWorld: (x, y) => renderer.toWorld(x, y),
+    panBy: (dx, dy) => renderer.panBy(dx, dy),
+    zoomAt: (factor, x, y) => renderer.zoomAt(factor, x, y),
+  },
   HUMAN,
   () => match.state,
   () => {
