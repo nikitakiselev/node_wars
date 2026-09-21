@@ -44,6 +44,37 @@ describe('a battery', () => {
     expect(state.nodes[2]!.points).toBeLessThan(80);
   });
 
+  test('does not care whose the node is, only how big it is', () => {
+    // Three different enemies around one battery. It fires on the largest
+    // stack, whoever happens to own it.
+    const state = board([
+      { owner: 2, points: 30 },
+      { owner: 3, points: 90 },
+      { owner: 4, points: 60 },
+    ]);
+
+    applyDrain(state, 1);
+
+    expect(state.nodes[1]!.points).toBe(30);
+    expect(state.nodes[2]!.points).toBeLessThan(90);
+    expect(state.nodes[3]!.points).toBe(60);
+  });
+
+  test('moves onto the next one as soon as it is no longer the biggest', () => {
+    const state = board([
+      { owner: 2, points: 60 },
+      { owner: 3, points: 50 },
+    ]);
+
+    // Long enough to take the first target below the second.
+    for (let tick = 0; tick < 30 * 20; tick++) step(state, 1 / 30);
+
+    // Neither is left standing while the other is ground down: the battery
+    // keeps whichever is currently largest shaved back.
+    expect(state.nodes[1]!.points).toBeLessThan(60);
+    expect(state.nodes[2]!.points).toBeLessThan(50);
+  });
+
   test('leaves unclaimed ground alone', () => {
     // Neutral ground is meant to cost points to take — that is a whole match
     // setting. A battery that erased it would undo the choice the player made.

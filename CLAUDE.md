@@ -100,6 +100,12 @@ were 0.35 to 1.3 and four levels out of five were invisible in play. The table
 now starts at 1.4, and `drain.test.ts` refuses any level that does not beat
 growth.
 
+**A battery fires on one neighbour at a time: whichever has the most points and
+is neither yours nor nobody's.** It does not care which player owns it — with
+five enemies around it, it shaves the biggest stack of the five — and it
+re-picks every step, so the moment its target drops below another neighbour it
+moves on. The effect is that it holds down whoever is currently largest.
+
 **Batteries stack, and that is the point of taking several.** Each one fires on
 its own strongest enemy neighbour, so two around one node both hit it and two
 along a line each hit their own. Four at full size take points off faster than
