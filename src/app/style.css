@@ -513,16 +513,17 @@ button,
 }
 
 /*
- * The bottom edge, flush.
+ * The bottom edge: off the glass, but only just.
  *
- * iOS reserves about 34pt down there for the home indicator, and on top of a
- * dark board that band is thrown away: the indicator draws over whatever is
- * beneath it and stays perfectly legible. So the HUD keeps none of it and the
- * bar sits on the edge of the glass; the board takes the rest, since its
- * insets are measured from the HUD rather than guessed.
+ * iOS reserves about 34pt down there for the home indicator, and on a dark
+ * board that whole band is thrown away — the indicator draws over whatever is
+ * beneath it and stays perfectly legible. What is kept is 16pt, which is the
+ * indicator's own height plus its margin and no more: enough that the pill
+ * never crosses the face of a button, far less than the band iOS asks for. The
+ * board takes the rest, since its insets are measured from the HUD.
  */
 :root.touch .hud {
-  padding-bottom: 0;
+  padding-bottom: 16px;
 }
 
 /*
