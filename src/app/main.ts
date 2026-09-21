@@ -118,32 +118,6 @@ const hud = {
 // small print already is: the menu behind it.
 if (touchPlayer) hud.pause.appendChild(hud.seed);
 
-/**
- * What the browser is actually giving us, written down where it can be read.
- *
- * On iOS a home-screen app does not always get the whole screen, and there is
- * no way to see that from here: the board fills the page exactly and still
- * stops short of the glass. Rather than guess at it, the numbers go in the
- * menu. Temporary — it comes out once the question is settled.
- */
-const diagnostics = document.createElement('span');
-diagnostics.className = 'pause__diag';
-hud.pause.appendChild(diagnostics);
-
-function paintDiagnostics(): void {
-  const probe = getComputedStyle(document.querySelector('.safe-probe')!);
-  const safe = `${probe.paddingTop} / ${probe.paddingBottom}`;
-  diagnostics.textContent = [
-    `сборка ${__BUILD_TIME__}`,
-    `окно ${window.innerWidth}×${window.innerHeight}`,
-    `экран ${window.screen.width}×${window.screen.height}`,
-    `холст ${Math.round(app.screen.width)}×${Math.round(app.screen.height)}`,
-    `поля ${safe}`,
-    `dpr ${window.devicePixelRatio}`,
-    window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'браузер',
-  ].join(' · ');
-}
-
 hud.cutWire.addEventListener('click', () => {
   const wire = controls.hoveredWire;
   if (wire === null) return;
@@ -169,7 +143,6 @@ function covered(): boolean {
 function updateRunning(): void {
   const blocked = covered() || paused;
   hud.pause.hidden = !paused || covered();
-  if (!hud.pause.hidden) paintDiagnostics();
 
   // What floats over the board is paintOverlays' business, not this one's.
   paintOverlays();

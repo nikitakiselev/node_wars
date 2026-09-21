@@ -113,26 +113,6 @@ button,
   touch-action: none;
 }
 
-/* Measured rather than guessed: env() is only readable through a real box. */
-.safe-probe {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 0;
-  height: 0;
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.pause__diag {
-  max-width: 300px;
-  font-size: 11px;
-  line-height: 1.5;
-  text-align: center;
-  color: #52686f;
-}
 
 .hud {
   position: fixed;

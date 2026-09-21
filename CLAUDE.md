@@ -211,8 +211,10 @@ the page up under the status bar without making it any taller: measured on an
 iPhone, a 956pt screen against an 894pt window — the 62pt of status bar came
 straight off the *bottom*, where the board was left cut off above a band
 nothing could draw into. Opaque puts the page below the status bar and its
-bottom reaches the bottom of the glass. The numbers came from the diagnostics
-line in the pause menu, which exists for exactly this kind of question.
+bottom reaches the bottom of the glass. Those numbers came from a temporary
+readout in the pause menu — when a layout is wrong on a device you cannot
+inspect, printing `innerHeight`, `screen.height` and the insets on screen
+settles in one screenshot what guessing does not settle at all.
 
 `public/manifest.webmanifest` and `public/sw.js` make it installable and
 openable with no network, which is the whole point of a game you pick up in a

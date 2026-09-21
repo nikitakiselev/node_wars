@@ -20,13 +20,6 @@ function basePath(): string {
 
 export default defineConfig({
   base: basePath(),
-  // Stamped into the build so a running app can say which one it is. Asking
-  // "is the phone on the new version?" from a screenshot is otherwise guesswork.
-  define: {
-    __BUILD_TIME__: JSON.stringify(
-      new Date().toISOString().slice(0, 16).replace('T', ' '),
-    ),
-  },
   test: {
     globals: true,
     environment: 'node',
