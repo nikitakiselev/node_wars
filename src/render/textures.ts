@@ -13,7 +13,17 @@ export interface Brushes {
   /** Flat-topped hexagon: the body of a fortress. */
   bastion: Texture;
   mote: Texture;
+  /** One dash and the gap after it, repeated along a supply wire. */
+  dash: Texture;
 }
+
+/**
+ * Side of the dash tile, in texture pixels.
+ *
+ * A plain square, scaled to whatever a dash needs to be. Drawn larger than it
+ * is shown so an edge stays clean when the board is zoomed right in.
+ */
+export const DASH_TILE = 16;
 
 export function createBrushes(): Brushes {
   return {
@@ -30,7 +40,27 @@ export function createBrushes(): Brushes {
       [0.35, 'rgba(255,255,255,0.7)'],
       [1, 'rgba(255,255,255,0)'],
     ]),
+    dash: dashTexture(),
   };
+}
+
+/**
+ * One dash of a supply wire.
+ *
+ * A flat square, tinted and stretched into whatever dash is needed. Every dash
+ * on the board is a particle wearing this one texture, which is what lets them
+ * all go down in a single draw call.
+ */
+function dashTexture(): Texture {
+  const canvas = document.createElement('canvas');
+  canvas.width = DASH_TILE;
+  canvas.height = DASH_TILE;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, DASH_TILE, DASH_TILE);
+
+  return Texture.from(canvas);
 }
 
 function radialTexture(size: number, stops: [number, string][]): Texture {

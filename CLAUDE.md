@@ -399,12 +399,24 @@ there too, which is why the handlers come first in the file.
 - **Node rings are one `Graphics` per node**, redrawn only when a signature of
   owner and quantised fill changes. A single shared `Graphics` re-tessellates
   the whole board every frame and is most of what the game costs.
-- **Supply wires are stroked once per player, not once per dash.** The dashes
-  run, so the layer is rebuilt every frame, and each `stroke()` is its own
-  tessellation. Measured with 53 wires on screen: a stroke per dash cost 1.83ms
-  of a 16.7ms frame, gathering each colour's dashes into one path and stroking
-  once cost 0.94ms. Pixi's `moveTo` does start a new subpath, so the dashes
-  stay dashes — it is `arc` that continues from the current point.
+- **Every dash of every supply wire is a particle, not a stroke.** The dashes
+  run, so whatever draws them is rebuilt every frame, and a `Graphics` whose
+  path changed is re-tessellated on the CPU. Measured with 53 wires on screen,
+  against a 16.7ms frame:
+
+  | how | cost |
+  |---|---|
+  | a `stroke()` per dash | 1.83 ms |
+  | one `stroke()` per player | 0.94 ms |
+  | a `TilingSprite` per wire | 1.31 ms |
+  | **a particle per dash** | **0.15 ms** |
+
+  The tiling sprite is the instructive one: it looks like the cheap answer —
+  the geometry never changes and the dashes move by texture offset — but each
+  one is its own draw call with its own uniforms, and fifty of those cost more
+  than one tessellated batch. Particles win because they share a texture and a
+  container, which is one draw call for the whole board. It is the same thing
+  the squad streams already do.
 - **`?autopause=off` keeps a match running in an unfocused window**, which is
   what automated runs want; `readOptions` in `app/options.ts` parses it.
   Escape still pauses by hand. `?controls=touch` lays the phone controls out on

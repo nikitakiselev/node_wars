@@ -11,8 +11,8 @@ import { formatPoints } from '../core/format';
 import { MAX_LEVEL } from '../core/levels';
 import { Camera, type Insets } from './camera';
 import { NEUTRAL, type GameNode, type GameState, type Squad } from '../core/state';
-import { COLORS, FONT_FAMILY, MAX_PLAYERS, factionOf } from './theme';
-import { createBrushes, type Brushes } from './textures';
+import { COLORS, FONT_FAMILY, factionOf } from './theme';
+import { DASH_TILE, createBrushes, type Brushes } from './textures';
 
 /** What the renderer needs to know about the player's current gesture. */
 export interface DragHint {
@@ -83,7 +83,7 @@ const INSETS: Insets = { top: 62, bottom: 52, left: 20, right: 20 };
 export class GameRenderer {
   private readonly world = new Container();
   private readonly edgeLayer = new Graphics();
-  private readonly wireLayer = new Graphics();
+  private readonly wireLayer: ParticleContainer;
   private readonly liveEdgeLayer = new Graphics();
   private readonly glowLayer = new Container();
   private readonly discLayer = new Container();
@@ -97,6 +97,8 @@ export class GameRenderer {
   private readonly camera = new Camera();
   private insets: Insets = { ...INSETS };
   private readonly views: NodeView[] = [];
+  /** One particle per dash on screen, kept and reused rather than rebuilt. */
+  private readonly dashes: Particle[] = [];
   private readonly streams = new Map<number, Mote[]>();
   private readonly pool: Particle[] = [];
   private readonly flashes: Flash[] = [];
@@ -111,6 +113,11 @@ export class GameRenderer {
     this.brushes = createBrushes();
     this.motes = new ParticleContainer({
       dynamicProperties: { position: true, color: true, scale: true },
+    });
+    // Every dash of every wire is one of these, so the whole board's wires go
+    // down in a single draw call with nothing tessellated.
+    this.wireLayer = new ParticleContainer({
+      dynamicProperties: { position: true, color: true, scale: true, rotation: true },
     });
     this.motes.blendMode = 'add';
     this.beaconLayer.blendMode = 'add';
@@ -539,57 +546,71 @@ export class GameRenderer {
   /**
    * The running dashes along every supply wire.
    *
-   * One stroke per player, not one per dash. The dashes move, so the whole
-   * layer is rebuilt every frame, and a stroke apiece is a separate
-   * tessellation: measured at 53 wires it cost 1.8ms of a 16.7ms frame, which
-   * a player who wires their network up hits every match and a phone feels
-   * immediately. Gathering a colour's dashes into one path and stroking once
-   * turns hundreds of tessellations a frame into one per side.
+   * Every dash on the board is a particle in one container: one draw call,
+   * one shared texture, nothing tessellated. The dashes have to move, and a
+   * `Graphics` whose path changes is rebuilt on the CPU every frame — measured
+   * at 53 wires that cost 1.8ms of a 16.7ms frame with a stroke per dash and
+   * 0.94ms with one stroke per colour. A tiling sprite apiece was worse again
+   * at 1.31ms, because each one is its own draw call. Particles are what this
+   * renderer already uses for the squad streams, and they are what this is.
    */
   private drawWires(state: GameState, time: number): void {
-    this.wireLayer.clear();
-
     const stride = DASH_LENGTH + DASH_GAP;
     const phase = (time * DASH_SPEED) % stride;
+    let shown = 0;
 
-    for (let owner = 0; owner < MAX_PLAYERS; owner++) {
-      let drawn = false;
+    state.nodes.forEach((source, fromId) => {
+      const toId = state.wires[fromId];
+      if (toId === undefined) return;
+      const target = state.nodes[toId];
+      if (!target) return;
 
-      state.nodes.forEach((source, fromId) => {
-        if (source.owner !== owner) return;
-        const toId = state.wires[fromId];
-        if (toId === undefined) return;
-        const target = state.nodes[toId];
-        if (!target) return;
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const length = Math.hypot(dx, dy);
+      if (length < 1) return;
 
-        const dx = target.x - source.x;
-        const dy = target.y - source.y;
-        const length = Math.hypot(dx, dy);
-        if (length < 1) return;
+      const ux = dx / length;
+      const uy = dy / length;
+      // Start and finish clear of both circles so the dashes read as a line
+      // between nodes rather than something growing out of them.
+      const start = source.radius + 4;
+      const finish = length - target.radius - 4;
+      const angle = Math.atan2(dy, dx);
+      const colour = factionOf(source.owner).glow;
 
-        const ux = dx / length;
-        const uy = dy / length;
-        // Start and finish clear of both circles so the dashes read as a line
-        // between nodes rather than something growing out of them.
-        const start = source.radius + 4;
-        const finish = length - target.radius - 4;
+      for (let at = start + phase - stride; at < finish; at += stride) {
+        const head = Math.max(start, at);
+        const tail = Math.min(finish, at + DASH_LENGTH);
+        if (tail <= head) continue;
 
-        for (let at = start + phase - stride; at < finish; at += stride) {
-          const head = Math.max(start, at);
-          const tail = Math.min(finish, at + DASH_LENGTH);
-          if (tail <= head) continue;
-
-          this.wireLayer
-            .moveTo(source.x + ux * head, source.y + uy * head)
-            .lineTo(source.x + ux * tail, source.y + uy * tail);
-          drawn = true;
-        }
-      });
-
-      if (drawn) {
-        this.wireLayer.stroke({ width: 2.5, color: factionOf(owner).glow, alpha: 0.75 });
+        const dash = this.dashAt(shown++);
+        dash.x = source.x + ux * head;
+        dash.y = source.y + uy * head;
+        dash.rotation = angle;
+        dash.scaleX = (tail - head) / DASH_TILE;
+        dash.scaleY = WIRE_WIDTH / DASH_TILE;
+        dash.tint = colour;
+        dash.alpha = 0.75;
       }
+    });
+
+    // Anything left over from a busier frame is parked off the board rather
+    // than removed: the container is rebuilt from this list every frame.
+    for (let spare = shown; spare < this.dashes.length; spare++) {
+      this.dashes[spare]!.alpha = 0;
     }
+  }
+
+  /** The particle for the nth dash on screen, made once and reused after that. */
+  private dashAt(index: number): Particle {
+    const existing = this.dashes[index];
+    if (existing) return existing;
+
+    const dash = new Particle({ texture: this.brushes.dash, anchorX: 0, anchorY: 0.5 });
+    this.dashes.push(dash);
+    this.wireLayer.addParticle(dash);
+    return dash;
   }
 
   private drawLiveEdges(state: GameState, drag: DragHint): void {
@@ -708,6 +729,10 @@ function hexagonPath(graphics: Graphics, x: number, y: number, radius: number): 
   graphics.closePath();
 }
 
+/** How thick a supply wire is drawn, in world units. */
+const WIRE_WIDTH = 2.5;
+
+/** Dash and gap, in world units. */
 const DASH_LENGTH = 7;
 const DASH_GAP = 7;
 /** World units a dash travels per second. */
