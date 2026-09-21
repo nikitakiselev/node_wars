@@ -92,6 +92,12 @@ dialog, and a battery that erased it would quietly undo that choice. The bot
 prices it as `1 + drain` only when the node borders an enemy of its own — on a
 border it grinds for free, in the rear it is a node like any other.
 
+**Batteries stack, and that is the point of taking several.** Each one fires on
+its own strongest enemy neighbour, so two around one node both hit it and two
+along a line each hit their own. Four at full size take points off faster than
+any node earns them, which makes the ground under them unholdable by standing
+on it — the defender has to ship reserves in or take a battery off you.
+
 All of these scale with level and live in one table, `BY_LEVEL` in
 `core/kinds.ts`: defence 1.2× to 2×, growth 1.4× to 2.5×, aura 1.12× to 1.28×,
 drain 0.35 to 1.3 points a second, and nothing at any level for a plain node. Only a finished fortress costs double to take. Read

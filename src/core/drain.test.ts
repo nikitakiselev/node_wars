@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { applyDrain } from './drain';
 import { makeNode, makeState } from './fixtures';
 import { drainRate } from './kinds';
+import { GROWTH_PER_SECOND } from './growth';
 import { MAX_LEVEL } from './levels';
 import { NEUTRAL, type GameState } from './state';
 
@@ -87,6 +88,55 @@ describe('a battery', () => {
     applyDrain(state, 1);
 
     expect(state.nodes[1]!.points).toBe(50);
+  });
+
+  test('several of mine on one node all fire on it', () => {
+    // Two batteries either side of the same node, and nothing else.
+    const left = makeNode(0, { owner: ME, kind: 'battery' });
+    const right = makeNode(1, { owner: ME, kind: 'battery' });
+    const caught = makeNode(2, { owner: THEM, points: 50 });
+    const state = makeState([left, right, caught], [
+      [0, 2],
+      [1, 2],
+    ]);
+
+    applyDrain(state, 1);
+
+    expect(50 - caught.points).toBeCloseTo(drainRate(left) + drainRate(right));
+  });
+
+  test('each of mine picks its own target, so they spread along a front', () => {
+    const one = makeNode(0, { owner: ME, kind: 'battery' });
+    const two = makeNode(1, { owner: ME, kind: 'battery' });
+    const near = makeNode(2, { owner: THEM, points: 50 });
+    const far = makeNode(3, { owner: THEM, points: 50 });
+    const state = makeState([one, two, near, far], [
+      [0, 2],
+      [1, 3],
+    ]);
+
+    applyDrain(state, 1);
+
+    expect(near.points).toBeLessThan(50);
+    expect(far.points).toBeLessThan(50);
+  });
+
+  test('a node ringed by batteries loses more than it can earn', () => {
+    // Which is the point of taking several: four of them at full size take
+    // points off faster than any node makes them, so the ground under them
+    // cannot be held by standing on it.
+    const ring = [0, 1, 2, 3].map((id) =>
+      makeNode(id, { owner: ME, kind: 'battery', level: MAX_LEVEL }),
+    );
+    const caught = makeNode(4, { owner: THEM, points: 100 });
+    const state = makeState(
+      [...ring, caught],
+      ring.map((node): [number, number] => [node.id, 4]),
+    );
+
+    applyDrain(state, 1);
+
+    expect(100 - caught.points).toBeGreaterThan(GROWTH_PER_SECOND);
   });
 
   test('bites harder the further it is built up', () => {
