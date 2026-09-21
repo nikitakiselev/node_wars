@@ -62,6 +62,13 @@ const ALL_IN_PENALTY = 0.35;
 /** A fortress is cheap to hold once taken, which is worth a premium of its own. */
 const FORTRESS_PREMIUM = 0.4;
 
+/** How much more a fortress on the border is worth reinforcing than a plain node. */
+const FORTRESS_HOLD = 1.6;
+
+/** Garrison a border fortress keeps back before spending on walls, as a share
+ * of its ceiling. It builds from surplus, never from the troops holding it. */
+const FORTIFY_RESERVE = 0.5;
+
 /**
  * What a node is worth beyond its capacity.
  *
@@ -134,10 +141,17 @@ function build(state: GameState, player: OwnerId, config: AiConfig, rng: Rng): v
   const candidates = state.nodes
     .filter((node) => {
       if (node.owner !== player) return false;
-      if ((toFront[node.id] ?? 0) < 1) return false;
       if (node.points < node.capacity) return false;
+
       const cost = upgradeCost(node.level);
-      return cost !== null && node.points >= cost;
+      if (cost === null || node.points < cost) return false;
+
+      // The rear builds from anything spare. A fortress on the border builds
+      // too — walls are what it is for — but only out of surplus, so paying
+      // for them never leaves the crossing thin.
+      if ((toFront[node.id] ?? 0) >= 1) return true;
+      if (node.kind !== 'fortress') return false;
+      return node.points - cost >= node.capacity * FORTIFY_RESERVE;
     })
     // A farm earns double, so building one pays back twice as fast.
     .map((node) => ({ node, score: growthRateOf(node) / upgradeCost(node.level)! }))
@@ -235,7 +249,7 @@ function chooseSupport(
       const there = toFront[targetId] ?? Infinity;
       if (!(there < here)) continue;
 
-      const move = support(state, source, target, config);
+      const move = support(state, source, target, config, player);
       if (move) supports.push(move);
     }
   }
@@ -292,6 +306,7 @@ function support(
   source: GameNode,
   target: GameNode,
   config: AiConfig,
+  player: OwnerId,
 ): Move | null {
   const edge = edgeBetween(state, source.id, target.id);
   if (!edge) return null;
@@ -299,14 +314,33 @@ function support(
   const amount = Math.floor(source.points * config.commitment);
   if (amount < 1) return null;
 
-  // Send from wherever is fullest and closest to the fighting.
+  // Send from wherever is fullest and closest to the fighting — and towards
+  // whichever border needs it. Scoring on the source alone made the logistics
+  // blind: reserves went to the nearest front whether or not anything was
+  // happening there, and a crossing about to fall got no more than a quiet
+  // node behind it.
   const flightSeconds = edge.length / SQUAD_SPEED;
+  const outgunned = Math.max(0, pressureOn(state, target, player) - target.points);
+  const urgency = 1 + outgunned / (target.capacity + 1);
+  const worth = target.kind === 'fortress' ? FORTRESS_HOLD : 1;
+
   return {
     from: source.id,
     to: target.id,
     fraction: config.commitment,
-    score: amount / (flightSeconds + 1),
+    score: ((amount * urgency * worth) / (flightSeconds + 1)),
   };
+}
+
+/** Points sitting next to a node that do not belong to its owner. */
+function pressureOn(state: GameState, node: GameNode, player: OwnerId): number {
+  let total = 0;
+  for (const id of state.adjacency[node.id] ?? []) {
+    const neighbour = state.nodes[id];
+    if (!neighbour || neighbour.owner === player) continue;
+    total += neighbour.points;
+  }
+  return total;
 }
 
 function evaluate(

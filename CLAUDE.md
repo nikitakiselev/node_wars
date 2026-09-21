@@ -101,6 +101,14 @@ matches, and undoing any of them brings back matches that never end:
   (`supportOrders`). Sharing one budget let a busy front eat every order, so a
   quiet outpost was never reinforced and a pocket of neutral nodes could stay
   untaken for a whole match — an unwinnable map.
+- **Support is scored on where it is going**, not only on where it comes from:
+  how badly the destination is outgunned, and whether it is a fortress worth
+  holding. Scoring the source alone made logistics blind — reserves went to the
+  nearest border whether or not anything was happening there.
+- **A fortress on the border may build itself up**, out of surplus only
+  (`FORTIFY_RESERVE`). The rear-only rule was exactly backwards for the one
+  kind of node that exists to be defended from; bots now finish matches with
+  their crossings at level three to five.
 
 Letting reinforcements stack on a node that already has one inbound was tried
 and measurably made things worse; it is deliberately refused.

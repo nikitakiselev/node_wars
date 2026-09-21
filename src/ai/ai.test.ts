@@ -369,6 +369,111 @@ describe('createAi', () => {
     expect(state.squads.some((squad) => squad.to === 2)).toBe(true);
   });
 
+  test('builds up a bridge it is holding, even though it is on the border', () => {
+    // A fortress exists to be defended from. Refusing to build one up because
+    // it stands on the border is exactly backwards.
+    const state = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER, kind: 'fortress' }),
+        makeNode(1, { owner: 0, points: 5 }),
+      ],
+      [[0, 1]],
+    );
+    applyLevel(state.nodes[0]!, 1);
+    state.nodes[0]!.points = state.nodes[0]!.capacity * 3;
+
+    letItThink(state);
+
+    expect(state.nodes[0]!.level).toBe(2);
+  });
+
+  test('will not build up a bridge if that leaves it thin', () => {
+    const state = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER, kind: 'fortress' }),
+        makeNode(1, { owner: 0, points: 5 }),
+      ],
+      [[0, 1]],
+    );
+    applyLevel(state.nodes[0]!, 1);
+    state.nodes[0]!.points = state.nodes[0]!.capacity;
+
+    letItThink(state);
+
+    expect(state.nodes[0]!.level).toBe(1);
+  });
+
+  test('still never builds up a plain node on the border', () => {
+    const state = makeState(
+      [makeNode(0, { owner: AI_PLAYER }), makeNode(1, { owner: 0, points: 5 })],
+      [[0, 1]],
+    );
+    applyLevel(state.nodes[0]!, 1);
+    state.nodes[0]!.points = state.nodes[0]!.capacity * 3;
+
+    letItThink(state);
+
+    expect(state.nodes[0]!.level).toBe(1);
+  });
+
+  test('sends reserves to the threatened border, not just the nearest one', () => {
+    // Node 0 is the rear. Node 1 faces a big enemy stack and is the further
+    // of the two, so distance alone would send the reserves to node 2.
+    const state = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER, points: 60, capacity: 90, x: 0, y: 0 }),
+        makeNode(1, { owner: AI_PLAYER, points: 10, capacity: 90, x: 300, y: 0 }),
+        makeNode(2, { owner: AI_PLAYER, points: 10, capacity: 90, x: 100, y: 0 }),
+        makeNode(3, { owner: 0, points: 400, capacity: 400, x: 600, y: 0 }),
+        makeNode(4, { owner: 0, points: 12, capacity: 90, x: 100, y: 300 }),
+      ],
+      [
+        [0, 1],
+        [0, 2],
+        [1, 3],
+        [2, 4],
+      ],
+    );
+
+    letItThink(state);
+
+    const support = state.squads.find((squad) => squad.from === 0);
+    expect(support, 'no reserves moved at all').toBeDefined();
+    expect(support!.to).toBe(1);
+  });
+
+  test('defends a bridge before a plain node under the same pressure', () => {
+    // Both borders are the same distance away and under the same pressure, so
+    // only what is standing there can decide it.
+    const state = makeState(
+      [
+        makeNode(0, { owner: AI_PLAYER, points: 60, capacity: 90, x: 0, y: 0 }),
+        makeNode(1, {
+          owner: AI_PLAYER,
+          points: 10,
+          capacity: 90,
+          kind: 'fortress',
+          x: 300,
+          y: 0,
+        }),
+        makeNode(2, { owner: AI_PLAYER, points: 10, capacity: 90, x: 0, y: 300 }),
+        makeNode(3, { owner: 0, points: 100, capacity: 400, x: 600, y: 0 }),
+        makeNode(4, { owner: 0, points: 100, capacity: 400, x: 0, y: 600 }),
+      ],
+      [
+        [0, 1],
+        [0, 2],
+        [1, 3],
+        [2, 4],
+      ],
+    );
+
+    letItThink(state);
+
+    const support = state.squads.find((squad) => squad.from === 0);
+    expect(support!.to).toBe(1);
+  });
+
   test('a harder opponent reacts faster', () => {
     expect(DIFFICULTIES.hard.reactionTime).toBeLessThan(DIFFICULTIES.normal.reactionTime);
     expect(DIFFICULTIES.normal.reactionTime).toBeLessThan(DIFFICULTIES.easy.reactionTime);
@@ -465,7 +570,12 @@ describe('createAi', () => {
       ],
     );
 
-    letItThink(state);
+    // The hop nearest the fighting is served first, so the deep rear's turn
+    // comes a decision or two later.
+    const brain = ai('normal');
+    for (let think = 0; think < 4; think++) {
+      brain.update(state, DIFFICULTIES.normal.reactionTime + 0.01);
+    }
 
     expect(state.squads.some((squad) => squad.from === 0 && squad.to === 1)).toBe(true);
   });
