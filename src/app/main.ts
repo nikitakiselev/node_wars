@@ -31,14 +31,18 @@ import { buildChoices, readChoice } from './settings-form';
 import './style.css';
 
 const app = new Application();
+const boardFrame = document.getElementById('board')!;
 await app.init({
   background: COLORS.waterDeep,
   antialias: true,
-  resizeTo: window,
+  // Sized to the board's own box, which is the page, rather than to `window`:
+  // an innerHeight read a moment too early leaves a strip along an edge that
+  // nothing ever redraws.
+  resizeTo: boardFrame,
   resolution: Math.min(window.devicePixelRatio, 2),
   autoDensity: true,
 });
-document.getElementById('board')!.appendChild(app.canvas);
+boardFrame.appendChild(app.canvas);
 
 // The simulation steps at 30 Hz and nothing on screen moves faster than the
 // eye follows, so drawing 120 times a second on a high-refresh display only
@@ -113,6 +117,31 @@ const hud = {
 // small print already is: the menu behind it.
 if (touchPlayer) hud.pause.appendChild(hud.seed);
 
+/**
+ * What the browser is actually giving us, written down where it can be read.
+ *
+ * On iOS a home-screen app does not always get the whole screen, and there is
+ * no way to see that from here: the board fills the page exactly and still
+ * stops short of the glass. Rather than guess at it, the numbers go in the
+ * menu. Temporary — it comes out once the question is settled.
+ */
+const diagnostics = document.createElement('span');
+diagnostics.className = 'pause__diag';
+hud.pause.appendChild(diagnostics);
+
+function paintDiagnostics(): void {
+  const probe = getComputedStyle(document.querySelector('.safe-probe')!);
+  const safe = `${probe.paddingTop} / ${probe.paddingBottom}`;
+  diagnostics.textContent = [
+    `окно ${window.innerWidth}×${window.innerHeight}`,
+    `экран ${window.screen.width}×${window.screen.height}`,
+    `холст ${Math.round(app.screen.width)}×${Math.round(app.screen.height)}`,
+    `поля ${safe}`,
+    `dpr ${window.devicePixelRatio}`,
+    window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'браузер',
+  ].join(' · ');
+}
+
 hud.cutWire.addEventListener('click', () => {
   const wire = controls.hoveredWire;
   if (wire === null) return;
@@ -138,6 +167,7 @@ function covered(): boolean {
 function updateRunning(): void {
   const blocked = covered() || paused;
   hud.pause.hidden = !paused || covered();
+  if (!hud.pause.hidden) paintDiagnostics();
 
   if (blocked) {
     app.ticker.stop();

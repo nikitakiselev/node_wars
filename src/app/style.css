@@ -95,9 +95,43 @@ button,
   touch-action: manipulation;
 }
 
+/*
+ * The board fills the page exactly.
+ *
+ * Pixi is told to size itself to this element rather than to `window`, so the
+ * canvas is whatever the page really is — an innerHeight read a moment too
+ * early, or one the browser never fires a resize for, cannot leave a strip of
+ * nothing along an edge.
+ */
+#board {
+  position: fixed;
+  inset: 0;
+}
+
 #board canvas {
   display: block;
   touch-action: none;
+}
+
+/* Measured rather than guessed: env() is only readable through a real box. */
+.safe-probe {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.pause__diag {
+  max-width: 300px;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+  color: #52686f;
 }
 
 .hud {
