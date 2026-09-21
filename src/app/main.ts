@@ -106,6 +106,16 @@ for (const button of document.querySelectorAll('[data-help]')) {
 
 document.querySelector('[data-resume]')!.addEventListener('click', () => setPaused(false));
 
+// The game saves itself, but a player wants to see that it has.
+const saveButton = document.querySelector<HTMLButtonElement>('[data-save-now]')!;
+saveButton.addEventListener('click', () => {
+  saveNow();
+  saveButton.textContent = 'Сохранено';
+  window.setTimeout(() => {
+    saveButton.textContent = 'Сохранить';
+  }, 1400);
+});
+
 // Leaving the window pauses: a real-time game running unwatched is just a game
 // being lost. Automated runs want the opposite, hence ?autopause=off.
 const options = readOptions(window.location.search);

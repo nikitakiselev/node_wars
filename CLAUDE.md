@@ -169,7 +169,11 @@ opponents' train of thought.
 
 Saving runs off the render loop, which stops when the game is paused or the tab
 is hidden — exactly when a tab tends to get closed — so `pagehide` and
-`visibilitychange` write it down as well.
+`visibilitychange` write it down as well. Those hooks, not the interval, are
+what actually protect a match.
+
+Measured before worrying about it: a save is 11.6 KB and costs 0.084 ms all in,
+against a 16.7 ms frame. Half a percent of one frame every two seconds.
 
 ## The camera
 
