@@ -18,6 +18,60 @@ function letItThink(state: GameState, difficulty: Difficulty = 'normal', seed = 
   return brain;
 }
 
+describe('a stack it cannot take', () => {
+  /**
+   * The board that came out of a real match: the bot holds a full network, the
+   * player has piled ten thousand points onto the one node between them, and
+   * there is nothing else to take.
+   */
+  function siegeBoard(): GameState {
+    const wall = makeNode(0, { owner: 0, points: 10_000, level: MAX_LEVEL });
+    applyLevel(wall, MAX_LEVEL);
+    wall.points = 10_000;
+
+    const mine = [1, 2, 3].map((id) => {
+      const node = makeNode(id, { owner: AI_PLAYER, level: MAX_LEVEL });
+      applyLevel(node, MAX_LEVEL);
+      node.points = capacityForLevel(MAX_LEVEL);
+      return node;
+    });
+
+    return makeState([wall, ...mine], [
+      [1, 0],
+      [1, 2],
+      [2, 3],
+    ]);
+  }
+
+  test('is worn down rather than left alone', () => {
+    // A node above its own ceiling earns nothing, so points taken off it stay
+    // off, while the bot grows its own back. Refusing the trade leaves the bot
+    // standing at full strength for the rest of the match.
+    const state = siegeBoard();
+
+    letItThink(state);
+
+    // Squads between its own nodes do not count: shuffling reserves behind the
+    // line is exactly what the bot was doing while it did nothing.
+    const attacks = state.squads.filter((squad) => squad.to === 0);
+    expect(attacks.length, 'the bot never attacked the stack').toBeGreaterThan(0);
+    expect(attacks[0]!.amount).toBeGreaterThan(0);
+  });
+
+  test('but a node that can heal is left alone', () => {
+    // Below its ceiling the node grows the damage back, so a wave that bounces
+    // is thrown away. This is the half of the rule that keeps the bot sane.
+    const state = siegeBoard();
+    const wall = state.nodes[0]!;
+    wall.points = wall.capacity - 1;
+
+    letItThink(state);
+
+    const attacks = state.squads.filter((squad) => squad.to === 0);
+    expect(attacks).toHaveLength(0);
+  });
+});
+
 describe('createAi', () => {
   test('does nothing when it owns no nodes', () => {
     const state = makeState([makeNode(0, { owner: 0, points: 40 }), makeNode(1)], [[0, 1]]);

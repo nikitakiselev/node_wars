@@ -1,3 +1,4 @@
+import { effectiveAttack } from '../core/combat';
 import { growthRateOf } from '../core/growth';
 import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { upgradeCost } from '../core/levels';
@@ -58,6 +59,14 @@ export const DIFFICULTIES: Record<Difficulty, AiConfig> = {
  * is never the first choice while something cheaper is on offer.
  */
 const ALL_IN_PENALTY = 0.35;
+
+/**
+ * How far a siege is marked down against an attack that takes the node.
+ *
+ * Low enough that any real capture anywhere on the board is preferred, high
+ * enough that standing still is not.
+ */
+const SIEGE_PENALTY = 0.5;
 
 /** A fortress is cheap to hold once taken, which is worth a premium of its own. */
 const FORTRESS_PREMIUM = 0.4;
@@ -387,7 +396,7 @@ function evaluate(
 
   const affordable = Math.floor(source.points * config.commitment);
   const allIn = needed > affordable;
-  if (allIn && needed > source.points) return null;
+  if (needed > source.points) return siege(source, target, config, flightSeconds);
 
   const fraction = Math.min(1, needed / source.points);
 
@@ -401,6 +410,47 @@ function evaluate(
   const score = (worth / (needed + flightSeconds * 10)) * (allIn ? ALL_IN_PENALTY : 1);
 
   return { from: source.id, to: target.id, fraction, score };
+}
+
+/**
+ * An attack that cannot take the node and is worth making anyway.
+ *
+ * A node holding more than its own ceiling earns nothing back: what is taken
+ * off it stays off, while the attacker's own nodes grow their points again. A
+ * wave that bounces off a stack like that is a trade the attacker wins, and
+ * refusing it is how a bot ends up standing at full strength for the rest of
+ * the match — which is exactly what it used to do against a player who piled
+ * ten thousand points onto the one node between them.
+ *
+ * Below the ceiling the damage grows back, so the wave is thrown away. That
+ * half of the rule, and the demand that the attacking node be full, are what
+ * keep this from being "attack regardless".
+ */
+function siege(
+  source: GameNode,
+  target: GameNode,
+  config: AiConfig,
+  flightSeconds: number,
+): Move | null {
+  // Only a node that has stopped earning may be spent this way. Its points are
+  // dead weight until they are used, which is precisely what a siege is for;
+  // a node still filling up is growing into something, and emptying it costs
+  // real economy for a dent.
+  if (source.points < source.capacity) return null;
+
+  const amount = Math.floor(source.points * config.commitment);
+  if (amount < 1) return null;
+
+  const damage = effectiveAttack(target, amount);
+  // Still over its ceiling once the wave lands, so none of this grows back.
+  if (target.points - damage < target.capacity) return null;
+
+  return {
+    from: source.id,
+    to: target.id,
+    fraction: config.commitment,
+    score: (damage / (amount + flightSeconds * 10)) * SIEGE_PENALTY,
+  };
 }
 
 /** Points this player already has flying towards a node. */

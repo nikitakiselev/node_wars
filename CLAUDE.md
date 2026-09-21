@@ -120,6 +120,17 @@ matches, and undoing any of them brings back matches that never end:
   kind of node that exists to be defended from; bots now finish matches with
   their crossings at level three to five.
 
+- **A node it cannot take is besieged, not ignored** (`siege` in `ai.ts`). A
+  node holding more than its own ceiling earns nothing back, so points taken
+  off it stay off while the attacker's own nodes grow theirs again — a wave
+  that bounces is a trade the attacker wins. Without this the bot stood at full
+  strength for the rest of the match against a human who had piled ten thousand
+  points onto the one node between them, shuffling reserves behind its own line
+  and never firing. Two guards keep it from becoming "attack regardless": the
+  target must still be over its ceiling after the hit, and the attacking node
+  must be full, because a node still filling up is growing into something and a
+  full one's points are dead weight until spent.
+
 Letting reinforcements stack on a node that already has one inbound was tried
 and measurably made things worse; it is deliberately refused.
 
