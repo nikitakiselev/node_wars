@@ -200,7 +200,13 @@ button,
     border-color 120ms;
 }
 
-.controls button:hover,
+@media (hover: hover) {
+  .controls button:hover {
+    color: var(--foam);
+    border-color: #2b6b78;
+  }
+}
+
 .controls button:focus-visible {
   color: var(--foam);
   border-color: #2b6b78;
@@ -497,13 +503,13 @@ button,
  *
  * iOS reserves about 34pt down there for the home indicator, and on a dark
  * board that whole band is thrown away — the indicator draws over whatever is
- * beneath it and stays perfectly legible. What is kept is 16pt, which is the
- * indicator's own height plus its margin and no more: enough that the pill
- * never crosses the face of a button, far less than the band iOS asks for. The
- * board takes the rest, since its insets are measured from the HUD.
+ * beneath it and stays perfectly legible. What is kept is 32pt: clear of the
+ * indicator, and clear enough of the edge that pressing a button is not
+ * pressing the very rim of the glass. Still less than the band iOS asks for.
+ * The board takes the rest, since its insets are measured from the HUD.
  */
 :root.touch .hud {
-  padding-bottom: 16px;
+  padding-bottom: 32px;
 }
 
 /*
@@ -694,9 +700,11 @@ button,
     border-color 120ms;
 }
 
-.choice span:hover {
-  color: var(--foam);
-  border-color: #2b6b78;
+@media (hover: hover) {
+  .choice span:hover {
+    color: var(--foam);
+    border-color: #2b6b78;
+  }
 }
 
 .choice input:checked + span {
@@ -941,7 +949,13 @@ button,
   pointer-events: auto;
 }
 
-.wire-cut:hover,
+@media (hover: hover) {
+  .wire-cut:hover {
+    background: rgba(4, 18, 26, 1);
+    filter: brightness(1.35);
+  }
+}
+
 .wire-cut:focus-visible {
   background: rgba(4, 18, 26, 1);
   filter: brightness(1.35);
@@ -1002,4 +1016,90 @@ button,
   font-size: 12.5px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* Pressing things
+ *
+ * A finger has no hover. The only feedback a tap can give is what happens
+ * while it is held down, so every control gets a pressed state — and hover,
+ * where it exists at all, is guarded by `hover: hover`, or iOS leaves a button
+ * looking hovered long after the finger has gone.
+ *
+ * Two treatments, because the same one cannot read on both: a filled pill is
+ * pressed by darkening it, an outlined one by filling it faintly. Both shrink,
+ * which is the part that reads as a press rather than as a state.
+ */
+.controls button,
+.menu,
+.pause button,
+.verdict button,
+.help .primary,
+.setup .primary,
+.resume .primary,
+.setup__actions button:not(.primary),
+.choice span,
+.upgrade button,
+.wire-cut,
+.zoom__thumb {
+  transition:
+    transform 90ms ease,
+    filter 90ms ease,
+    background-color 120ms,
+    border-color 120ms,
+    color 120ms;
+}
+
+/* Filled: pressed by going darker. */
+.pause button:active,
+.verdict button:active,
+.help .primary:active,
+.setup .primary:active,
+.resume .primary:active,
+.controls button.is-chosen:active,
+.choice input:checked + span:active,
+.upgrade button:not(:disabled):active {
+  transform: scale(0.94);
+  filter: brightness(0.86);
+}
+
+/* Outlined: pressed by filling faintly. */
+.controls button:not(.is-chosen):active,
+.menu:active,
+.pause .pause__rules:active,
+.setup__actions button:not(.primary):active,
+.choice span:active {
+  transform: scale(0.94);
+  border-color: #2b6b78;
+  background-color: rgba(230, 242, 240, 0.14);
+  color: var(--foam);
+}
+
+/* Both of these carry a transform of their own, so it has to be written out. */
+.wire-cut:active {
+  transform: translate(-50%, -50%) scale(0.88);
+  background: rgba(230, 242, 240, 0.16);
+  color: var(--foam);
+}
+
+.zoom:active .zoom__thumb {
+  border-color: var(--foam);
+  background: rgba(230, 242, 240, 0.16);
+  transform: scale(1.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .controls button,
+  .menu,
+  .pause button,
+  .verdict button,
+  .help .primary,
+  .setup .primary,
+  .resume .primary,
+  .setup__actions button:not(.primary),
+  .choice span,
+  .upgrade button,
+  .wire-cut,
+  .zoom__thumb {
+    transition: none;
+  }
 }

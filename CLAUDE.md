@@ -176,6 +176,13 @@ not fit across a phone, so the menu is a mark rather than a label. The bottom
 strip is the most expensive place on the screen, and none of those controls is
 wanted during a move.
 
+Every control has a **pressed** state, and hover lives inside
+`@media (hover: hover)`. A finger has no hover: the only feedback a tap can
+give is what happens while it is held down, and an unguarded `:hover` leaves a
+button on iOS looking hovered long after the finger has gone. Filled pills are
+pressed by darkening, outlined ones by filling faintly; both shrink, which is
+the part that reads as a press rather than as a state.
+
 Zoom has a rail down the right edge as well as the pinch (`.zoom` in
 `main.ts`). A pinch takes two fingers, which takes both hands; the rail is the
 same zoom under the thumb of the hand already holding the phone. It reads
