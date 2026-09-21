@@ -1,5 +1,5 @@
-import { growthMultiplier } from './kinds';
-import { NEUTRAL, type GameNode } from './state';
+import { auraMultiplier, growthMultiplier } from './kinds';
+import { NEUTRAL, type GameNode, type OwnerId } from './state';
 
 /** Points per second added to every owned node below its capacity. */
 export const GROWTH_PER_SECOND = 1;
@@ -18,12 +18,36 @@ export function growthRateOf(node: GameNode): number {
  * Grows owned nodes toward their capacity.
  *
  * Nodes already at or above capacity hold steady, so reinforcing past the cap
- * is a deliberate choice rather than a leak.
+ * is a deliberate choice rather than a leak. A player holding a core earns
+ * faster everywhere at once — that is what makes it worth crossing the board
+ * for, rather than one more node to stand on.
  */
 export function applyGrowth(nodes: readonly GameNode[], dt: number): void {
+  const auras = aurasHeld(nodes);
+
   for (const node of nodes) {
     if (node.owner === NEUTRAL) continue;
     if (node.points >= node.capacity) continue;
-    node.points = Math.min(node.capacity, node.points + growthRateOf(node) * dt);
+    const rate = growthRateOf(node) * (auras.get(node.owner) ?? 1);
+    node.points = Math.min(node.capacity, node.points + rate * dt);
   }
+}
+
+/**
+ * The aura each player is currently holding.
+ *
+ * A board carries one core, but the best is taken rather than the product, so
+ * a map that somehow held two could not double anybody's economy.
+ */
+function aurasHeld(nodes: readonly GameNode[]): Map<OwnerId, number> {
+  const held = new Map<OwnerId, number>();
+
+  for (const node of nodes) {
+    if (node.owner === NEUTRAL) continue;
+    const aura = auraMultiplier(node);
+    if (aura <= 1) continue;
+    held.set(node.owner, Math.max(held.get(node.owner) ?? 1, aura));
+  }
+
+  return held;
 }

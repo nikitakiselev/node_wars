@@ -1,4 +1,4 @@
-import { defenceMultiplier, growthMultiplier } from '../core/kinds';
+import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { MAX_LEVEL, capacityForLevel, upgradeCost } from '../core/levels';
 
 export interface HelpTable {
@@ -67,7 +67,10 @@ export function helpSections(controls: Controls = 'mouse'): HelpSection[] {
     },
     {
       title: 'Типы узлов',
-      lines: ['Обычный узел от уровня получает только объём, остальные — ещё и своё умение.'],
+      lines: [
+        'Обычный узел от уровня получает только объём, остальные — ещё и своё умение.',
+        'Ядро на карте одно, посередине. Пока оно ваше, быстрее растёт вся ваша сеть.',
+      ],
       table: {
         head: ['', ...LEVELS.map(String)],
         rows: [
@@ -78,6 +81,10 @@ export function helpSections(controls: Controls = 'mouse'): HelpSection[] {
           [
             'Ферма, прирост',
             ...LEVELS.map((level) => `${growthMultiplier({ kind: 'farm', level })}×`),
+          ],
+          [
+            'Ядро, вся сеть',
+            ...LEVELS.map((level) => `${auraMultiplier({ kind: 'core', level })}×`),
           ],
         ],
       },

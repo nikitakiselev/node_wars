@@ -17,6 +17,43 @@ function ownedBy(state: GameState, owner: number) {
   return state.nodes.filter((n) => n.owner === owner);
 }
 
+describe('the core, the one node worth crossing the board for', () => {
+  test('every board carries exactly one', () => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      expect(map(seed).nodes.filter((n) => n.kind === 'core'), `seed ${seed}`).toHaveLength(1);
+    }
+  });
+
+  test('nobody starts on it', () => {
+    for (const seed of [11, 12, 13]) {
+      const core = map(seed).nodes.find((n) => n.kind === 'core')!;
+      expect(core.owner, `seed ${seed}`).toBe(NEUTRAL);
+    }
+  });
+
+  test('it is defended more heavily than plain ground', () => {
+    const state = map(14);
+    const core = state.nodes.find((n) => n.kind === 'core')!;
+    const plain = state.nodes.find((n) => n.owner === NEUTRAL && n.kind === 'base')!;
+
+    expect(core.points / core.capacity).toBeGreaterThan(plain.points / plain.capacity);
+  });
+
+  test('it sits near the middle, where everyone has to come to it', () => {
+    const centre = { x: CONFIG.width / 2, y: CONFIG.height / 2 };
+    const away = (n: { x: number; y: number }) => Math.hypot(n.x - centre.x, n.y - centre.y);
+
+    for (const seed of [21, 22, 23]) {
+      const state = map(seed);
+      const core = state.nodes.find((n) => n.kind === 'core')!;
+      const distances = state.nodes.map(away).sort((a, b) => a - b);
+      const median = distances[Math.floor(distances.length / 2)]!;
+
+      expect(away(core), `seed ${seed}`).toBeLessThan(median);
+    }
+  });
+});
+
 describe('generateMap', () => {
   test('the same seed produces an identical map', () => {
     expect(map(2024)).toEqual(map(2024));

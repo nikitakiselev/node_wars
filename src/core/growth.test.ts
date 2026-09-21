@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { NEUTRAL, type GameNode } from './state';
 import { GROWTH_PER_SECOND, applyGrowth } from './growth';
+import { auraMultiplier } from './kinds';
 
 function node(overrides: Partial<GameNode> = {}): GameNode {
   return {
@@ -16,6 +17,45 @@ function node(overrides: Partial<GameNode> = {}): GameNode {
     ...overrides,
   };
 }
+
+describe('a core, which speeds up the network that holds it', () => {
+  test('every node its owner holds earns faster', () => {
+    const core = node({ id: 0, kind: 'core', owner: 1, points: 0 });
+    const mine = node({ id: 1, owner: 1, points: 0 });
+
+    applyGrowth([core, mine], 1);
+
+    expect(mine.points).toBeCloseTo(GROWTH_PER_SECOND * auraMultiplier(core));
+  });
+
+  test('the core earns faster too: it is part of the network', () => {
+    const core = node({ id: 0, kind: 'core', owner: 1, points: 0 });
+
+    applyGrowth([core], 1);
+
+    expect(core.points).toBeCloseTo(GROWTH_PER_SECOND * auraMultiplier(core));
+  });
+
+  test('it does nothing for anybody else', () => {
+    const core = node({ id: 0, kind: 'core', owner: 1, points: 0 });
+    const theirs = node({ id: 1, owner: 2, points: 0 });
+    const unclaimed = node({ id: 2, owner: NEUTRAL, points: 0 });
+
+    applyGrowth([core, theirs, unclaimed], 1);
+
+    expect(theirs.points).toBeCloseTo(GROWTH_PER_SECOND);
+    expect(unclaimed.points).toBe(0);
+  });
+
+  test('a core nobody holds speeds up nothing', () => {
+    const core = node({ id: 0, kind: 'core', owner: NEUTRAL, points: 0 });
+    const mine = node({ id: 1, owner: 1, points: 0 });
+
+    applyGrowth([core, mine], 1);
+
+    expect(mine.points).toBeCloseTo(GROWTH_PER_SECOND);
+  });
+});
 
 describe('applyGrowth', () => {
   test('an owned node gains points at the growth rate', () => {

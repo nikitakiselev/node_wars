@@ -128,7 +128,42 @@ function drawMap(config: MapConfig, rng: Rng, crowding = 1): GameState | null {
     node.points = START_POINTS;
   }
 
+  placeCore(state, config);
+
   return state;
+}
+
+/** How much more than plain ground the core defends itself with. */
+const CORE_GARRISON = 2;
+
+/**
+ * Puts the core where everyone has to come to it.
+ *
+ * The middle of the board, because a prize in a corner belongs to whoever
+ * started nearest it, and this one is meant to be the reason two players meet
+ * before minute ten. Placed after the openings are dealt so it can never land
+ * under somebody's first node — and never on a bridge, which is a crossing
+ * rather than a destination.
+ */
+function placeCore(state: GameState, config: MapConfig): void {
+  const centre = { x: config.width / 2, y: config.height / 2 };
+
+  let chosen: GameNode | null = null;
+  let best = Infinity;
+
+  for (const node of state.nodes) {
+    if (node.owner !== NEUTRAL || node.kind !== 'base') continue;
+    if (state.islands[node.id] === BRIDGE) continue;
+
+    const away = Math.hypot(node.x - centre.x, node.y - centre.y);
+    if (away >= best) continue;
+    best = away;
+    chosen = node;
+  }
+
+  if (!chosen) return;
+  chosen.kind = 'core';
+  chosen.points = Math.min(chosen.capacity, Math.round(chosen.points * CORE_GARRISON));
 }
 
 function makeNode(id: number, point: Point, rng: Rng, garrison: number): GameNode {

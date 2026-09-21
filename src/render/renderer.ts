@@ -387,13 +387,23 @@ export class GameRenderer {
     });
   }
 
-  /** The badge that says what kind of node this is: armour, or sun rays. */
+  /** The badge that says what kind of node this is: armour, rays, or a halo. */
   private drawKindMark(ring: Graphics, node: GameNode, colour: number): void {
     if (node.kind === 'fortress') {
       // An angular outline outside the round gauge: corners are the one thing
       // that cannot be mistaken for another circle.
       hexagonPath(ring, node.x, node.y, node.radius * BASTION_WALL);
       ring.stroke({ width: 2.5, color: colour, alpha: 0.85 });
+      return;
+    }
+
+    if (node.kind === 'core') {
+      // A halo, not spikes: the core does nothing where it stands and
+      // everything everywhere else, so its mark reaches away from it.
+      ring.circle(node.x, node.y, node.radius * CORE_HALO);
+      ring.stroke({ width: 2, color: colour, alpha: 0.7 });
+      ring.circle(node.x, node.y, node.radius * (CORE_HALO + 0.22));
+      ring.stroke({ width: 1, color: colour, alpha: 0.35 });
       return;
     }
 
@@ -663,6 +673,9 @@ const BASTION_BODY = 1.1;
  * its shore, and a wide wall would then draw over the node it joins.
  */
 const BASTION_WALL = 1.24;
+
+/** How far out the core's halo sits, against the node's own radius. */
+const CORE_HALO = 1.3;
 
 /** Traces a flat-topped hexagon; the caller strokes or fills it. */
 function hexagonPath(graphics: Graphics, x: number, y: number, radius: number): void {

@@ -66,21 +66,31 @@ Upgrades measurably made matches more decisive, not less — 8/10 settled versus
 
 ## Node kinds
 
-`NodeKind` is `base | fortress | farm`, rolled independently of size and never
-given to a starting node. A fortress turns away part of an incoming *hostile* force
+`NodeKind` is `base | fortress | farm | core`, rolled independently of size and
+never given to a starting node. A fortress turns away part of an incoming *hostile* force
 (`effectiveAttack` in `combat.ts`); reinforcing your own is never reduced. A
 farm earns faster (`growthRateOf` in `growth.ts`) but holds no more, which
 keeps node size an honest read of the cap.
 
-Both bonuses scale with level and live in one table, `BY_LEVEL` in
-`core/kinds.ts`: defence 1.2× to 2×, growth 1.4× to 2.5×, and 1× at every
-level for a plain node. Only a finished fortress costs double to take. Read
+A **core** earns for the network rather than for itself: while you hold it,
+every node you own grows faster. There is exactly one per board, placed nearest
+the centre after the openings are dealt — so it can never sit under a first
+node — and it defends itself with twice a plain node's garrison. It is the one
+node worth crossing the board for, and the reason two players meet before
+minute ten rather than after it. The bot prices it as `1 + (aura - 1) × nodes
+held`, so a bot with three nodes ignores it and a bot with thirty drops
+everything: the same table tunes the rule and the bot together.
+
+All of these scale with level and live in one table, `BY_LEVEL` in
+`core/kinds.ts`: defence 1.2× to 2×, growth 1.4× to 2.5×, aura 1.12× to 1.28×,
+and 1× at every level for a plain node. Only a finished fortress costs double to take. Read
 them through `defenceMultiplier` / `growthMultiplier` rather than hardcoding a
 constant anywhere.
 
-Adding a kind touches four places: `KIND_WEIGHTS` (mapgen), a row in
-`BY_LEVEL` (`core/kinds.ts`), `drawKindMark` (renderer) and the legend in
-`index.html`. The bot values a node from those multipliers, so it needs no
+Adding a kind touches four places: placement in `mapgen.ts`, a row in
+`BY_LEVEL` (`core/kinds.ts`), `drawKindMark` (renderer) and the kinds table in
+`app/help.ts`, whose test refuses a kind whose numbers are not read from the
+table the game plays by. The bot values a node from those multipliers, so it needs no
 separate table. Kinds are shown by silhouette, never by colour — colour
 already means ownership.
 

@@ -1,5 +1,5 @@
 import { growthRateOf } from '../core/growth';
-import { defenceMultiplier, growthMultiplier } from '../core/kinds';
+import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { upgradeCost } from '../core/levels';
 import { SQUAD_SPEED, sendSquad } from '../core/orders';
 import { upgradeNode } from '../core/upgrade';
@@ -75,13 +75,28 @@ const FORTIFY_RESERVE = 0.5;
  * A farm that earns half as much again is worth half as much again, so its
  * worth follows its actual rate rather than a flat constant. A fortress earns
  * nothing extra, but the thicker its walls the less it will cost to keep.
+ *
+ * A core earns for the whole network, so what it is worth depends on how big
+ * that network is: a bot holding three nodes should not cross the board for
+ * it, and a bot holding thirty should drop everything. Taken from the same
+ * table the rule plays by, so tuning the aura tunes the bot with it.
+ *
+ * @param held how many nodes the attacker owns right now.
  */
-function kindWorth(target: GameNode): number {
+function kindWorth(target: GameNode, held: number): number {
   if (target.kind === 'farm') return growthMultiplier(target);
   if (target.kind === 'fortress') {
     return 1 + (defenceMultiplier(target) - 1) * FORTRESS_PREMIUM;
   }
+  if (target.kind === 'core') return 1 + (auraMultiplier(target) - 1) * held;
   return 1;
+}
+
+/** How many nodes a player is holding, for the worth of what earns across them. */
+function nodesHeld(state: GameState, player: OwnerId): number {
+  let held = 0;
+  for (const node of state.nodes) if (node.owner === player) held++;
+  return held;
 }
 
 export interface Ai {
@@ -192,6 +207,9 @@ function chooseAttack(
   rng: Rng,
 ): Move | null {
   const attacks: Move[] = [];
+  // Counted once for the whole decision: what a core is worth depends on it,
+  // and it cannot change while the bot is making up its mind.
+  const held = nodesHeld(state, player);
 
   for (const source of state.nodes) {
     if (source.owner !== player) continue;
@@ -208,6 +226,7 @@ function chooseAttack(
         target,
         config,
         inboundFriendly(state, targetId, player),
+        held,
       );
       if (move) attacks.push(move);
     }
@@ -349,6 +368,7 @@ function evaluate(
   target: GameNode,
   config: AiConfig,
   inbound: number,
+  held: number,
 ): Move | null {
   const edge = edgeBetween(state, source.id, target.id);
   if (!edge) return null;
@@ -375,7 +395,9 @@ function evaluate(
   // spends and how long it is in the air. Taking ground from the human is
   // worth more than the same node sitting neutral.
   const worth =
-    target.capacity * kindWorth(target) * (target.owner === NEUTRAL ? 1 : config.aggression);
+    target.capacity *
+    kindWorth(target, held) *
+    (target.owner === NEUTRAL ? 1 : config.aggression);
   const score = (worth / (needed + flightSeconds * 10)) * (allIn ? ALL_IN_PENALTY : 1);
 
   return { from: source.id, to: target.id, fraction, score };
