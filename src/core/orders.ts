@@ -3,6 +3,7 @@ import { NEUTRAL, type GameState, type OwnerId, type Squad } from './state';
 /** World units a squad covers per second, whatever the edge length. */
 export const SQUAD_SPEED = 140;
 
+
 /**
  * Orders a node to send part of its garrison along an edge.
  *
