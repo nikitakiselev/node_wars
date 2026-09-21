@@ -151,6 +151,12 @@ pause button and the bigger hit targets are switched on by a `touch` class on
 be able to overrule the device — a desktop browser never reports a coarse
 pointer, and the phone layout would otherwise need a phone to look at.
 
+On a phone the footer holds **one** button, «Меню», and everything else —
+rules, a new match, saving, the seed — lives behind it on the pause screen,
+which already existed. The bottom strip is the most expensive place on the
+screen: the home indicator takes a band of it before anything is drawn, and
+none of those controls is wanted during a move.
+
 `help.ts` takes the same argument. Telling a player to right-click on a screen
 with no mouse is the same kind of lie as a stale number, so the rules panel
 has a touch wording for every sentence about giving an order — and its tests

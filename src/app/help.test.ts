@@ -96,9 +96,11 @@ describe('the rules on a touch screen', () => {
     }
   });
 
-  test('names the bar and the gestures a finger uses instead', () => {
+  test('names the bar, the menu and the gestures a finger uses instead', () => {
     expect(everything).toContain('Провод');
     expect(everything).toContain('пальц');
+    // The footer holds one button on a phone; everything else is behind it.
+    expect(everything).toContain('Меню');
   });
 
   test('stays as short as the version written for a mouse', () => {

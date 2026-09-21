@@ -325,9 +325,37 @@ button,
   display: inline-block;
 }
 
+/*
+ * One button in the footer, and the rest behind it.
+ *
+ * A phone gives up a strip to the home indicator before anything else is
+ * drawn, so the bottom of the screen is the most expensive place there is.
+ * Rules, a new match and the seed are all things you reach for between moves,
+ * never during one, and the pause menu is already where they live.
+ */
+:root.touch .controls [data-seed],
+:root.touch .controls [data-help],
+:root.touch .controls [data-open-settings] {
+  display: none;
+}
+
 :root.touch .controls button {
-  padding: 9px 16px;
+  padding: 10px 22px;
   font-size: 14px;
+}
+
+:root.touch .bottom {
+  gap: 10px;
+}
+
+:root.touch .pause button {
+  padding: 12px 26px;
+  font-size: 15px;
+}
+
+:root.touch .pause__more {
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 /* Both of these are aimed at with a fingertip rather than a cursor. */
@@ -644,6 +672,12 @@ button,
 }
 
 .pause__hint {
+  font-size: 13px;
+  color: #6f868c;
+}
+
+/* On a phone the seed is parked here, where the rest of the small print is. */
+.pause [data-seed] {
   font-size: 13px;
   color: #6f868c;
 }

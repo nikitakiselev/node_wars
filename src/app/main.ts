@@ -105,6 +105,10 @@ const hud = {
   cutWire: document.querySelector<HTMLButtonElement>('[data-cut-wire]')!,
 };
 
+// A phone's footer holds one button, so the seed goes where the rest of the
+// small print already is: the menu behind it.
+if (touchPlayer) hud.pause.appendChild(hud.seed);
+
 hud.cutWire.addEventListener('click', () => {
   const wire = controls.hoveredWire;
   if (wire === null) return;
