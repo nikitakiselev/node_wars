@@ -288,7 +288,14 @@ against a 16.7 ms frame. Half a percent of one frame every two seconds.
 of Pixi, because the arithmetic is the part that goes wrong. Zoom 1 is the
 whole board fitted inside the HUD insets and is also the floor — there is
 nothing outside the board to look at — and panning is clamped so it can never
-be dragged into empty space. The renderer applies `camera.transform` to its
+be dragged into empty space.
+
+**The insets bound the fit, not the pan.** They exist so the whole board is
+visible beside the HUD at rest; the HUD is see-through and the board is drawn
+under it, so once the board is bigger than the screen it may be dragged until
+its edge reaches the *screen's* edge. Clamping the pan to the HUD-free room
+instead leaves a band of empty water under the buttons that no amount of
+dragging removes — it looks like the board is cut off. The renderer applies `camera.transform` to its
 world container, so `toWorld` and `toScreen` keep working without knowing
 anything about zoom.
 

@@ -125,6 +125,36 @@ describe('panning', () => {
     expect(y + WORLD.height * scale).toBeGreaterThanOrEqual(VIEW.height - 0.001);
   });
 
+  test('reaches the edge of the screen, not the edge of the HUD', () => {
+    // The HUD is see-through and the board is drawn underneath it. Stopping at
+    // the HUD's edge leaves a band of empty water under the buttons that the
+    // player cannot get rid of, however far they drag.
+    const made = new Camera();
+    made.setViewport(VIEW.width, VIEW.height, { top: 60, bottom: 100, left: 20, right: 20 });
+    made.setWorld(WORLD.width, WORLD.height);
+    made.zoomAt(3, 700, 400);
+
+    made.panBy(0, -9000);
+    const up = made.transform;
+    expect(up.y + WORLD.height * up.scale).toBeGreaterThanOrEqual(VIEW.height - 0.001);
+
+    made.panBy(0, 9000);
+    const down = made.transform;
+    expect(down.y).toBeLessThanOrEqual(0.001);
+  });
+
+  test('still keeps the whole board clear of the HUD when it fits', () => {
+    const made = new Camera();
+    made.setViewport(VIEW.width, VIEW.height, { top: 60, bottom: 100, left: 20, right: 20 });
+    made.setWorld(WORLD.width, WORLD.height);
+
+    made.panBy(0, -9000);
+    const { scale, y } = made.transform;
+
+    expect(y).toBeGreaterThanOrEqual(60 - 0.001);
+    expect(y + WORLD.height * scale).toBeLessThanOrEqual(VIEW.height - 100 + 0.001);
+  });
+
   test('a new board starts from the whole view again', () => {
     const made = camera();
     made.zoomAt(3, 400, 400);

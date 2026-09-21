@@ -109,18 +109,53 @@ export class Camera {
     const scale = this.fitScale() * this.level;
     const room = this.room();
 
-    this.panX = clampAxis(this.panX, this.worldWidth * scale, room.width);
-    this.panY = clampAxis(this.panY, this.worldHeight * scale, room.height);
+    this.panX = clampAxis(
+      this.panX,
+      this.worldWidth * scale,
+      room.width,
+      this.viewWidth,
+      this.insets.left,
+    );
+    this.panY = clampAxis(
+      this.panY,
+      this.worldHeight * scale,
+      room.height,
+      this.viewHeight,
+      this.insets.top,
+    );
   }
 }
 
 /**
  * How far the board may slide on one axis.
  *
- * Wider than the view, it may slide until its far edge reaches the near one;
- * narrower, it stays centred, because sliding it would only reveal emptiness.
+ * Two limits, and which one applies depends on how big the board has become.
+ *
+ * The insets exist so that the *whole* board is visible beside the HUD at rest
+ * — but the HUD is see-through and the board is drawn underneath it, so once
+ * the board is bigger than the screen there is no reason to stop it at the
+ * HUD's edge. Doing so leaves a band of empty water under the buttons that no
+ * amount of dragging gets rid of. Big enough to cover the screen, it may be
+ * dragged until its edge reaches the screen's.
+ *
+ * Below that it has to keep the HUD-free room covered instead, and smaller
+ * than the room it stays centred, because sliding it would only reveal
+ * emptiness.
  */
-function clampAxis(pan: number, extent: number, room: number): number {
+function clampAxis(
+  pan: number,
+  extent: number,
+  room: number,
+  view: number,
+  near: number,
+): number {
+  if (extent >= view) {
+    // Where the near edge sits before any panning: the board is centred in the
+    // room, which is itself off-centre in the view.
+    const home = near + (room - extent) / 2;
+    return Math.min(-home, Math.max(view - extent - home, pan));
+  }
+
   const slack = (extent - room) / 2;
   if (slack <= 0) return 0;
   return Math.min(slack, Math.max(-slack, pan));
