@@ -162,6 +162,12 @@ then faded, since a zoomed-in board pans nodes up underneath both. The strip is
 positioned, so the scoreboard is given `position: relative` as well; otherwise
 it paints under the very thing meant to sit behind it.
 
+The standings shrink to a coloured dot and one number apiece: the names and
+the word «узлов» cost a line of a screen with none to spare, and the tide bar
+directly above already says who holds how much. Both wordings are built into
+the row and kept up to date; the stylesheet decides which one shows, so
+`paintHud` stays one path.
+
 On a phone the footer holds **one** button, «Меню», and everything else —
 rules, a new match, saving, the seed — lives behind it on the pause screen,
 which already existed. The bottom strip is the most expensive place on the

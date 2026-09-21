@@ -539,13 +539,32 @@ function buildScoreboard(playerCount: number): void {
     bar.style.boxShadow = `0 0 14px ${colour}99`;
     hud.tide.appendChild(bar);
 
+    // One seat, written twice over: a sentence for a screen with room for it,
+    // and a dot with a number for one without. Which of them shows is the
+    // stylesheet's business; both are kept up to date either way.
     const row = document.createElement('span');
     row.className = 'side';
+    row.style.setProperty('--seat', colour);
+
+    const dot = document.createElement('i');
+    dot.className = 'side__dot';
+
+    const name = document.createElement('span');
+    name.className = 'side__spelled';
+    name.textContent = `${faction.label}: `;
+
     const nodes = document.createElement('b');
+    nodes.className = 'side__spelled';
+    const nodesUnit = document.createElement('span');
+    nodesUnit.className = 'side__spelled';
+    nodesUnit.textContent = ' узлов, ';
+
     const points = document.createElement('b');
-    nodes.style.color = colour;
-    points.style.color = colour;
-    row.append(`${faction.label}: `, nodes, ' узлов, ', points, ' очков');
+    const pointsUnit = document.createElement('span');
+    pointsUnit.className = 'side__spelled';
+    pointsUnit.textContent = ' очков';
+
+    row.append(dot, name, nodes, nodesUnit, points, pointsUnit);
     hud.readout.appendChild(row);
 
     seats.push({ bar, nodes, points });
