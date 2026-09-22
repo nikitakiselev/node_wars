@@ -20,13 +20,16 @@ export const NEUTRAL: OwnerId = -1;
 export type NodeKind = 'base' | 'fortress' | 'farm' | 'core' | 'balancer';
 
 /**
- * How a balancer picks which of its outputs gets the next parcel.
+ * How a balancer splits what reaches it.
  *
- * - `round` — each parcel to the next output in the list.
- * - `balance` — each parcel to whichever output is emptiest against its own
- *   ceiling, the way a battery balancer pulls cells to one voltage.
+ * - `round` — the whole parcel to the next output in the list, in turn.
+ * - `adaptive` — split between all of them at once, weighted so the ones
+ *   behind catch up with the fullest, and what is left over shared evenly.
+ * - `broadcast` — split evenly between all of them, whatever they hold.
+ *
+ * The names are the load balancer's own: that is what the node is.
  */
-export type ShareMode = 'round' | 'balance';
+export type ShareMode = 'round' | 'adaptive' | 'broadcast';
 
 export interface GameNode {
   id: number;

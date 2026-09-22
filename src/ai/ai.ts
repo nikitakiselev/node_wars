@@ -266,9 +266,9 @@ function aimHubs(state: GameState, player: OwnerId): void {
   for (const node of state.nodes) {
     if (node.owner !== player || node.kind !== 'balancer') continue;
 
-    // Nothing it holds is its own, so nothing it does is worth a fair share:
-    // it sends where the need is, which is what balance means.
-    node.share = 'balance';
+    // Nothing it holds is its own, so an even split is not what it wants: it
+    // sends where the need is, and lets the front catch up with the rear.
+    node.share = 'adaptive';
 
     const depth = toFront[node.id] ?? 0;
     const forward = (state.adjacency[node.id] ?? []).filter((id) => {

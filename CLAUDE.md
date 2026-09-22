@@ -100,12 +100,30 @@ a single point. That is the price of logistics that costs no orders, and it is
 why a hub belongs in the rear — the bot's own rule refuses to build one within
 two hops of the fighting.
 
-Two ways to share, `SHARE_MODES` in `core/balancer.ts`: round the list, or to
-whichever output has sagged furthest against its own ceiling. The second is the
-battery-balancer one — it tops up rather than splitting, and parcel after
-parcel the outputs draw level. One parcel goes whole to one output rather than
-being split across all of them: splitting converges faster and costs a squad
-and a particle stream per share.
+Three ways to share, `SHARE_MODES` in `core/balancer.ts`, under the load
+balancer's own names because that is what the node is. **Round Robin** sends
+the whole parcel to the next output in turn. **Adaptive** and **Broadcast**
+both cut the parcel up and send to every output at once; they differ only in
+the weights — Broadcast splits evenly, Adaptive first brings whoever is behind
+level with the fullest output and splits what is left over evenly, so it
+degenerates into Broadcast once everything is level.
+
+**Adaptive tops up to the leader rather than sharing out in proportion to how
+far behind each one is.** Proportion overshoots: two outputs holding 10 and 40
+would get the whole parcel sent to the first, which then passes the second,
+and the two slosh back and forth for the rest of the match. Topping up settles
+— they draw level and then rise together.
+
+**Every share is rounded down and no mode may ever exceed the parcel.** The
+leftover, never more than a point per output, stays on the hub and goes out
+with the next one. Rounding the other way would print points, and
+`balancer.test.ts` checks every mode against every awkward parcel size for
+exactly that.
+
+A split parcel is one squad per output rather than one squad, so a hub with
+five wires is five particle streams where a wire is one. Hubs are few — one
+per twelve nodes for a bot — which is the only reason this is affordable; see
+the wire measurements below before making them common.
 
 **Building a node into a kind is a table too** — `CONVERSIONS` in
 `core/convert.ts`, holding the price, the label and what a node must be. A

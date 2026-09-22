@@ -108,5 +108,13 @@ function reviveState(state: Record<string, unknown>): GameState {
     Array.isArray(wires) ? (wires as number[]) : [],
   );
 
+  // A hub saved before the balancer learned to split a parcel was set to the
+  // one mode that has since been renamed. Its successor is the nearest thing
+  // to what the player asked for, so the setting is carried across rather
+  // than the whole match being refused over one word.
+  for (const node of revived.nodes) {
+    if ((node.share as string) === 'balance') node.share = 'adaptive';
+  }
+
   return revived;
 }

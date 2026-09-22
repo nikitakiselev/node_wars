@@ -77,7 +77,7 @@ describe('saving a match', () => {
     if (!mine) return;
 
     mine.kind = 'balancer';
-    mine.share = 'balance';
+    mine.share = 'adaptive';
     mine.cursor = 3;
     for (const id of match.state.adjacency[mine.id]!) {
       if (match.state.nodes[id]!.owner === 0) setWire(match.state, 0, mine.id, id);
@@ -87,8 +87,22 @@ describe('saving a match', () => {
     const back = loadSave(where)!;
 
     expect(back.state.wires[mine.id]).toEqual(match.state.wires[mine.id]);
-    expect(back.state.nodes[mine.id]!.share).toBe('balance');
+    expect(back.state.nodes[mine.id]!.share).toBe('adaptive');
     expect(back.state.nodes[mine.id]!.cursor).toBe(3);
+  });
+
+  test('a hub set to the mode that was renamed comes back on its successor', () => {
+    const where = storage();
+    const match = played();
+    const mine = match.state.nodes.find((node) => node.owner === 0)!;
+    mine.kind = 'balancer';
+    writeSave(where, match);
+
+    const raw = JSON.parse(where.getItem('node-wars/save')!);
+    raw.state.nodes[mine.id].share = 'balance';
+    where.setItem('node-wars/save', JSON.stringify(raw));
+
+    expect(loadSave(where)!.state.nodes[mine.id]!.share).toBe('adaptive');
   });
 
   test('a save written before portrait boards existed is still a wide board', () => {

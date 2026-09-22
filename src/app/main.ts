@@ -1,6 +1,6 @@
 import { Application } from 'pixi.js';
 import type { Difficulty } from '../ai/ai';
-import { SHARE_MODES } from '../core/balancer';
+import { SHARE_MODES, shareModeOf } from '../core/balancer';
 import { CONVERSIONS, conversionsFor, convertNode, revertNode } from '../core/convert';
 import { formatPoints } from '../core/format';
 import { defenceMultiplier, growthMultiplier } from '../core/kinds';
@@ -271,7 +271,7 @@ function openShare(nodeId: number): void {
   if (!node || node.kind !== 'balancer') return;
 
   sharing = nodeId;
-  buildChoices(shareDialog, 'share', SHARE_MODES, node.share ?? 'round');
+  buildChoices(shareDialog, 'share', SHARE_MODES, shareModeOf(node));
   paintShare();
   shareDialog.showModal();
   updateRunning();
@@ -300,7 +300,7 @@ function paintShare(): void {
   const node = sharing === null ? undefined : match.state.nodes[sharing];
   if (!node) return;
 
-  shareHint.textContent = SHARE_MODES[node.share ?? 'round'].hint;
+  shareHint.textContent = SHARE_MODES[shareModeOf(node)].hint;
   shareOutputs.replaceChildren();
 
   const outputs = wiresFrom(match.state, node.id);
@@ -960,7 +960,7 @@ function actionsFor(node: GameNode): NodeAction[] {
 function noteFor(node: GameNode): string {
   if (node.kind === 'balancer') {
     const outputs = wiresFrom(match.state, node.id).length;
-    const mode = SHARE_MODES[node.share ?? 'round'].label.toLowerCase();
+    const mode = SHARE_MODES[shareModeOf(node)].label;
     return outputs === 0 ? 'Раздавать некуда: нет проводов' : `${mode}, выходов ${outputs}`;
   }
 

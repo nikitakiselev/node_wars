@@ -1,46 +1,58 @@
 import { describe, expect, test } from 'vitest';
-import { flushBalancers } from './balancer';
+import { SHARE_MODES, flushBalancers, shareModeOf } from './balancer';
 import { makeNode, makeState } from './fixtures';
 import { applyGrowth } from './growth';
 import { setWire } from './wires';
 import type { GameState, ShareMode } from './state';
 
-/** A balancer in the middle with two outputs of its own either side. */
-function hub(share: ShareMode, points = 30): GameState {
+/** A hub with three outputs of its own, each holding what it is told to. */
+function hub(share: ShareMode, points: number, held: number[] = [0, 0, 0]): GameState {
   const state = makeState(
     [
       makeNode(0, { owner: 0, kind: 'balancer', level: 5, capacity: 240, points, share }),
-      makeNode(1, { owner: 0, points: 0 }),
-      makeNode(2, { owner: 0, points: 0 }),
+      ...held.map((has, index) => makeNode(index + 1, { owner: 0, points: has })),
     ],
-    [
-      [0, 1],
-      [0, 2],
-    ],
+    held.map((_, index) => [0, index + 1] as [number, number]),
   );
-  setWire(state, 0, 0, 1);
-  setWire(state, 0, 0, 2);
+
+  for (let index = 0; index < held.length; index++) setWire(state, 0, 0, index + 1);
   return state;
 }
 
-/** Where the squads currently in the air are headed, in the order they left. */
-function outbound(state: GameState): number[] {
-  return state.squads.map((squad) => squad.to);
+/** Where the parcel went, as output id to points. */
+function sent(state: GameState): Record<number, number> {
+  const out: Record<number, number> = {};
+  for (const squad of state.squads) out[squad.to] = (out[squad.to] ?? 0) + squad.amount;
+  return out;
 }
 
-describe('transit', () => {
-  test('keeps nothing: what arrives leaves', () => {
-    const state = hub('round');
+/** Delivers everything in the air, so the next parcel sees the result. */
+function land(state: GameState): void {
+  for (const squad of state.squads) state.nodes[squad.to]!.points += squad.amount;
+  state.squads = [];
+}
+
+describe('a hub keeps nothing and earns nothing', () => {
+  test('it never earns, whatever else is growing', () => {
+    const state = hub('round', 0);
+
+    applyGrowth(state.nodes, 10);
+
+    expect(state.nodes[0]!.points).toBe(0);
+    expect(state.nodes[1]!.points).toBe(10);
+  });
+
+  test('with one output the whole parcel leaves', () => {
+    const state = hub('round', 30, [0]);
 
     flushBalancers(state);
 
     expect(state.nodes[0]!.points).toBeLessThan(1);
-    expect(state.squads).toHaveLength(1);
-    expect(state.squads[0]!.amount).toBe(30);
+    expect(sent(state)).toEqual({ 1: 30 });
   });
 
-  test('a balancer with no outputs holds on to what it has', () => {
-    const state = hub('round');
+  test('a hub with no outputs holds on to what it has', () => {
+    const state = hub('round', 30);
     state.wires[0] = [];
 
     flushBalancers(state);
@@ -50,96 +62,147 @@ describe('transit', () => {
   });
 
   test('nothing to share is not an order', () => {
-    const state = hub('round', 0);
+    const state = hub('broadcast', 0);
 
     flushBalancers(state);
 
     expect(state.squads).toHaveLength(0);
   });
 
-  test('a balancer never earns, whatever else is growing', () => {
-    const state = hub('round', 0);
-
-    applyGrowth(state.nodes, 10);
-
-    expect(state.nodes[0]!.points).toBe(0);
-    expect(state.nodes[1]!.points).toBe(10);
-  });
-
   test('only the owner ships: a neutral hub sits still', () => {
-    const state = hub('round');
+    const state = hub('round', 30);
     state.nodes[0]!.owner = -1;
 
     flushBalancers(state);
 
     expect(state.squads).toHaveLength(0);
   });
+
+  test('a mode nobody recognises is read as the plain one', () => {
+    const state = hub('round', 30);
+    // A save written by another build, or by hand.
+    state.nodes[0]!.share = 'nonsense' as ShareMode;
+
+    expect(shareModeOf(state.nodes[0]!)).toBe('round');
+    flushBalancers(state);
+    expect(state.squads).toHaveLength(1);
+  });
 });
 
-describe('round robin', () => {
-  test('each parcel goes to the next output in turn', () => {
-    const state = hub('round');
+describe('Round Robin', () => {
+  test('the whole parcel goes to one output, the next one each time', () => {
+    const state = hub('round', 0);
 
-    for (let parcel = 0; parcel < 3; parcel++) {
-      state.nodes[0]!.points = 30;
+    for (let parcel = 0; parcel < 4; parcel++) {
+      state.nodes[0]!.points = 90;
       flushBalancers(state);
     }
 
-    expect(outbound(state)).toEqual([1, 2, 1]);
+    expect(state.squads.map((squad) => squad.to)).toEqual([1, 2, 3, 1]);
+    expect(state.squads.every((squad) => squad.amount === 90)).toBe(true);
   });
 
   test('it carries on round the shorter list when a wire is cut', () => {
-    const state = hub('round');
-    state.nodes[0]!.points = 30;
+    const state = hub('round', 90);
     flushBalancers(state);
-    expect(outbound(state)).toEqual([1]);
+    state.squads = [];
 
-    state.wires[0] = [2];
-    state.nodes[0]!.points = 30;
+    state.wires[0] = [3];
+    state.nodes[0]!.points = 90;
     flushBalancers(state);
 
-    expect(outbound(state)).toEqual([1, 2]);
+    expect(sent(state)).toEqual({ 3: 90 });
   });
 });
 
-describe('balance', () => {
-  test('the parcel goes to whichever output is emptiest against its ceiling', () => {
-    const state = hub('balance');
-    state.nodes[1]!.points = 40;
-    state.nodes[2]!.points = 10;
+describe('Broadcast', () => {
+  test('the parcel is cut into equal shares, one to each output', () => {
+    const state = hub('broadcast', 99);
 
     flushBalancers(state);
 
-    expect(outbound(state)).toEqual([2]);
+    expect(sent(state)).toEqual({ 1: 33, 2: 33, 3: 33 });
   });
 
-  test('it reads fullness, not the raw number', () => {
-    const state = hub('balance');
-    // Node 1 holds less, but node 2 is the emptier of the two for its size.
-    state.nodes[1]!.points = 20;
-    state.nodes[1]!.capacity = 25;
-    state.nodes[2]!.points = 25;
-    state.nodes[2]!.capacity = 240;
+  test('it pays no attention to what an output already holds', () => {
+    const state = hub('broadcast', 90, [0, 200, 1000]);
 
     flushBalancers(state);
 
-    expect(outbound(state)).toEqual([2]);
+    expect(sent(state)).toEqual({ 1: 30, 2: 30, 3: 30 });
   });
 
-  test('parcel after parcel, the outputs draw level', () => {
-    const state = hub('balance', 0);
-    state.nodes[1]!.points = 0;
-    state.nodes[2]!.points = 60;
+  test('what will not divide stays on the hub rather than being invented', () => {
+    const state = hub('broadcast', 100);
 
-    // Each parcel lands where it was sent, so the next one sees the result.
-    for (let parcel = 0; parcel < 4; parcel++) {
-      state.nodes[0]!.points = 30;
+    flushBalancers(state);
+
+    expect(sent(state)).toEqual({ 1: 33, 2: 33, 3: 33 });
+    expect(state.nodes[0]!.points).toBe(1);
+  });
+});
+
+describe('Adaptive', () => {
+  test('the ones behind are brought level, and the rest is split evenly', () => {
+    const state = hub('adaptive', 100, [10, 40, 40]);
+
+    flushBalancers(state);
+    land(state);
+
+    expect(state.nodes[1]!.points).toBe(63);
+    expect(state.nodes[2]!.points).toBe(63);
+    expect(state.nodes[3]!.points).toBe(63);
+  });
+
+  test('a parcel too small to level them is shared out in proportion', () => {
+    const state = hub('adaptive', 12, [10, 40, 40]);
+
+    flushBalancers(state);
+
+    expect(sent(state)).toEqual({ 1: 12 });
+  });
+
+  test('once they are level it shares evenly, which is what keeps them level', () => {
+    const state = hub('adaptive', 99, [20, 20, 20]);
+
+    flushBalancers(state);
+
+    expect(sent(state)).toEqual({ 1: 33, 2: 33, 3: 33 });
+  });
+
+  test('parcel after parcel, outputs that started far apart stay together', () => {
+    const state = hub('adaptive', 0, [0, 150, 600]);
+
+    for (let parcel = 0; parcel < 6; parcel++) {
+      state.nodes[0]!.points = 300;
       flushBalancers(state);
-      for (const squad of state.squads) state.nodes[squad.to]!.points += squad.amount;
-      state.squads = [];
+      land(state);
     }
 
-    expect(state.nodes[1]!.points).toBe(90);
-    expect(state.nodes[2]!.points).toBe(90);
+    const held = [1, 2, 3].map((id) => state.nodes[id]!.points);
+    expect(Math.max(...held) - Math.min(...held)).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('what a hub can never do', () => {
+  test('no mode ever sends out more than came in', () => {
+    for (const mode of Object.keys(SHARE_MODES) as ShareMode[]) {
+      for (const parcel of [1, 7, 50, 99, 100, 241]) {
+        const state = hub(mode, parcel, [3, 17, 200]);
+
+        flushBalancers(state);
+
+        const total = state.squads.reduce((sum, squad) => sum + squad.amount, 0);
+        expect(total, `${mode} with ${parcel}`).toBeLessThanOrEqual(parcel);
+        expect(state.nodes[0]!.points, `${mode} with ${parcel}`).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  test('every mode says what it does', () => {
+    for (const mode of Object.values(SHARE_MODES)) {
+      expect(mode.label.length).toBeGreaterThan(0);
+      expect(mode.hint.length).toBeGreaterThan(0);
+    }
   });
 });
