@@ -3,6 +3,10 @@ import { BALANCER_COST, MIN_BALANCER_NEIGHBOURS } from '../core/convert';
 import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { MAX_LEVEL, capacityForLevel, upgradeCost } from '../core/levels';
 import { helpSections } from './help';
+import type { NodeKind } from '../core/state';
+
+/** Every kind there is, so a new one cannot quietly go unexplained. */
+const ALL_KINDS: NodeKind[] = ['base', 'fortress', 'farm', 'core', 'balancer'];
 
 const sections = helpSections();
 
@@ -79,6 +83,22 @@ describe('the rules panel', () => {
     }
   });
 
+  test('every kind is introduced, with a silhouette and a verb', () => {
+    const kinds = sections.find((s) => s.kinds)?.kinds;
+    expect(kinds).toBeDefined();
+
+    // Every kind the game can put on a board, and no invented ones.
+    const listed = kinds!.map((entry) => entry.kind).sort();
+    expect(listed).toEqual([...ALL_KINDS].sort());
+
+    for (const entry of kinds!) {
+      expect(entry.name.length, entry.kind).toBeGreaterThan(0);
+      // One line apiece: the panel is read standing up.
+      expect(entry.what.length, entry.kind).toBeGreaterThan(20);
+      expect(entry.what.length, entry.kind).toBeLessThanOrEqual(100);
+    }
+  });
+
   test('quotes what a balancer costs from the table that charges for it', () => {
     const everything = sections.flatMap((s) => s.lines).join(' ');
 
@@ -125,9 +145,10 @@ describe('the rules on a touch screen', () => {
     }
   });
 
-  test('keeps the tables, which are the same rules either way', () => {
+  test('keeps the tables and the kinds, which are the same rules either way', () => {
     touch.forEach((section, index) => {
       expect(section.table).toEqual(sections[index]!.table);
+      expect(section.kinds).toEqual(sections[index]!.kinds);
     });
   });
 });

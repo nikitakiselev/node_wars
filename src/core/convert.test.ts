@@ -46,13 +46,13 @@ describe('becoming a balancer', () => {
     expect(state.nodes[0]!.points).toBe(240 - BALANCER_COST);
   });
 
-  test('it starts on the levelling mode until told otherwise', () => {
+  test('it starts sharing equally until told otherwise', () => {
     const state = crossroads();
 
     convertNode(state, 0, 0, 'balancer');
 
     expect(state.nodes[0]!.share).toBe(DEFAULT_SHARE);
-    expect(DEFAULT_SHARE).toBe('adaptive');
+    expect(DEFAULT_SHARE).toBe('broadcast');
   });
 
   test('an unfinished node cannot: a hub is what you build at the top', () => {

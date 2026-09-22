@@ -1,5 +1,7 @@
 import { MIN_BALANCER_NEIGHBOURS, costOf } from '../core/convert';
+import type { NodeKind } from '../core/state';
 import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
+import { kindMark } from './kind-marks';
 import { MAX_LEVEL, capacityForLevel, upgradeCost } from '../core/levels';
 
 export interface HelpTable {
@@ -7,11 +9,55 @@ export interface HelpTable {
   rows: string[][];
 }
 
+/** One kind, as the panel introduces it: its silhouette, name and verb. */
+export interface HelpKind {
+  kind: NodeKind;
+  name: string;
+  what: string;
+}
+
 export interface HelpSection {
   title: string;
   lines: string[];
+  kinds?: HelpKind[];
   table?: HelpTable;
 }
+
+/**
+ * What each kind is for, in one line apiece.
+ *
+ * The silhouettes are the ones the board draws, so a player can match what
+ * they read here against what they are looking at. The numbers stay in the
+ * table below: this list says what a kind *does*, and a verb does not go
+ * stale when a multiplier is tuned.
+ */
+const KINDS: HelpKind[] = [
+  {
+    kind: 'base',
+    name: 'Обычный',
+    what: 'Растёт до своего потолка. От уровня получает только объём.',
+  },
+  {
+    kind: 'fortress',
+    name: 'Крепость',
+    what: 'Часть чужой атаки разбивается о стены. Своим подвозом это не мешает.',
+  },
+  {
+    kind: 'farm',
+    name: 'Ферма',
+    what: 'Зарабатывает быстрее, а держит столько же: размер по-прежнему честен.',
+  },
+  {
+    kind: 'core',
+    name: 'Ядро',
+    what: 'На карте одно, посередине. Пока оно ваше, быстрее растёт вся ваша сеть.',
+  },
+  {
+    kind: 'balancer',
+    name: 'Балансировщик',
+    what: 'Не зарабатывает и не копит: раздаёт пришедшее по своим проводам.',
+  },
+];
 
 const LEVELS = Array.from({ length: MAX_LEVEL }, (_, index) => index + 1);
 
@@ -69,10 +115,9 @@ export function helpSections(controls: Controls = 'mouse'): HelpSection[] {
     {
       title: 'Типы узлов',
       lines: [
-        'Обычный узел от уровня получает только объём, остальные — ещё и своё умение.',
-        'Ядро на карте одно, посередине. Пока оно ваше, быстрее растёт вся ваша сеть.',
         'Любому своему узлу можно сбросить тип обратно в обычный — это ничего не стоит.',
       ],
+      kinds: KINDS,
       table: {
         head: ['', ...LEVELS.map(String)],
         rows: [
@@ -159,8 +204,32 @@ export function renderHelp(host: HTMLElement, controls: Controls = 'mouse'): voi
       host.appendChild(paragraph);
     }
 
+    if (section.kinds) host.appendChild(buildKinds(section.kinds));
     if (section.table) host.appendChild(buildTable(section.table));
   }
+}
+
+/** The kinds as a list: silhouette, name, and what it is for. */
+function buildKinds(kinds: readonly HelpKind[]): HTMLElement {
+  const list = document.createElement('ul');
+  list.className = 'kinds';
+
+  for (const entry of kinds) {
+    const row = document.createElement('li');
+    row.appendChild(kindMark(entry.kind));
+
+    const text = document.createElement('div');
+    const name = document.createElement('b');
+    name.textContent = entry.name;
+    const what = document.createElement('span');
+    what.textContent = entry.what;
+
+    text.append(name, what);
+    row.appendChild(text);
+    list.appendChild(row);
+  }
+
+  return list;
 }
 
 function buildTable(table: HelpTable): HTMLTableElement {

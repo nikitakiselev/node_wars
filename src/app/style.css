@@ -673,6 +673,54 @@ button,
   }
 }
 
+/*
+ * The kinds, introduced by their silhouette.
+ *
+ * A player matches what they read here against what they are looking at on
+ * the board, so the mark has to be the mark — not a bullet standing in for
+ * one. `kind-marks.ts` draws both this and the button that builds a kind.
+ */
+.kinds {
+  display: grid;
+  gap: 12px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kinds li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.kinds svg {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin-top: -3px;
+  fill: none;
+  stroke: var(--jade);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.kinds div {
+  display: grid;
+  gap: 2px;
+}
+
+.kinds b {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.kinds span {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #9fb4b8;
+}
+
 /* Rules */
 
 .help {

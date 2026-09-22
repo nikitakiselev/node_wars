@@ -6,6 +6,7 @@ import {
   ParticleContainer,
   Sprite,
   Text,
+  TilingSprite,
 } from 'pixi.js';
 import { formatPoints } from '../core/format';
 import { MAX_LEVEL } from '../core/levels';
@@ -83,7 +84,7 @@ const INSETS: Insets = { top: 62, bottom: 52, left: 20, right: 20 };
 export class GameRenderer {
   private readonly world = new Container();
   private readonly edgeLayer = new Graphics();
-  private readonly wireLayer: ParticleContainer;
+  private readonly wireLayer = new Container();
   private readonly liveEdgeLayer = new Graphics();
   private readonly glowLayer = new Container();
   private readonly discLayer = new Container();
@@ -97,8 +98,8 @@ export class GameRenderer {
   private readonly camera = new Camera();
   private insets: Insets = { ...INSETS };
   private readonly views: NodeView[] = [];
-  /** One particle per dash on screen, kept and reused rather than rebuilt. */
-  private readonly dashes: Particle[] = [];
+  /** One sprite per wire on screen, kept and reused rather than rebuilt. */
+  private readonly wires: TilingSprite[] = [];
   private readonly streams = new Map<number, Mote[]>();
   private readonly pool: Particle[] = [];
   private readonly flashes: Flash[] = [];
@@ -113,11 +114,6 @@ export class GameRenderer {
     this.brushes = createBrushes();
     this.motes = new ParticleContainer({
       dynamicProperties: { position: true, color: true, scale: true },
-    });
-    // Every dash of every wire is one of these, so the whole board's wires go
-    // down in a single draw call with nothing tessellated.
-    this.wireLayer = new ParticleContainer({
-      dynamicProperties: { position: true, color: true, scale: true, rotation: true },
     });
     this.motes.blendMode = 'add';
     this.beaconLayer.blendMode = 'add';
@@ -578,29 +574,27 @@ export class GameRenderer {
    * The direction has to be visible at a glance — a wire that looks the same
    * both ways is worse than no line at all — so the dashes march rather than
    * sit still.
-   */
-  /**
-   * The running dashes along every supply wire.
    *
-   * Every dash on the board is a particle in one container: one draw call,
-   * one shared texture, nothing tessellated. The dashes have to move, and a
-   * `Graphics` whose path changes is rebuilt on the CPU every frame — measured
-   * at 53 wires that cost 1.8ms of a 16.7ms frame with a stroke per dash and
-   * 0.94ms with one stroke per colour. A tiling sprite apiece was worse again
-   * at 1.31ms, because each one is its own draw call. Particles are what this
-   * renderer already uses for the squad streams, and they are what this is.
+   * One sprite per wire, with the dash pattern repeating along it and sliding
+   * by an offset into the texture. That is the whole reason this is not a
+   * sprite per dash: drawn separately, every dash met the pixel grid at its
+   * own offset and rounded to its own length, and because they move, the
+   * pattern of longer and shorter dashes travelled along the wire. Drawn as
+   * one strip, every dash on a wire is rasterised by the same mapping and
+   * cannot disagree with its neighbours.
+   *
+   * The cost is a draw call per wire instead of one for the whole board. That
+   * was the wrong trade when bots wired sixty nodes; it is the right one now
+   * that the wires on a board are the player's own and a bot's few hubs.
    */
   private drawWires(state: GameState, time: number): void {
     const stride = DASH_LENGTH + DASH_GAP;
-    const phase = (time * DASH_SPEED) % stride;
+    const offset = (time * DASH_SPEED) % stride;
     let shown = 0;
 
     state.nodes.forEach((source, fromId) => {
       const colour = factionOf(source.owner).glow;
 
-      // A balancer points at every neighbour it has, so this is a loop rather
-      // than a lookup. The cost is the same either way: a dash is a particle,
-      // and particles share one draw call however many of them there are.
       for (const toId of state.wires[fromId] ?? []) {
         const target = state.nodes[toId];
         if (!target) continue;
@@ -610,48 +604,53 @@ export class GameRenderer {
         const length = Math.hypot(dx, dy);
         if (length < 1) continue;
 
-        const ux = dx / length;
-        const uy = dy / length;
-        // Start and finish clear of both circles so the dashes read as a line
-        // between nodes rather than something growing out of them.
-        const start = source.radius + 4;
-        const finish = length - target.radius - 4;
-        const angle = Math.atan2(dy, dx);
+        /*
+         * The strip is cut off well inside both nodes, not clear of them.
+         *
+         * Its ends are square, and a square end is only right where nothing
+         * can see it. The node disc is opaque and covers it, so what is left
+         * on screen is a line of dashes running out from under one node and
+         * in under the other.
+         */
+        const from = source.radius * UNDER_NODE;
+        const to = length - target.radius * UNDER_NODE;
+        if (to <= from) continue;
 
-        for (let at = start + phase - stride; at < finish; at += stride) {
-          const head = Math.max(start, at);
-          const tail = Math.min(finish, at + DASH_LENGTH);
-          if (tail <= head) continue;
+        const wire = this.wireAt(shown++);
+        wire.width = to - from;
+        wire.height = WIRE_WIDTH;
+        wire.position.set(source.x + (dx / length) * from, source.y + (dy / length) * from);
+        wire.rotation = Math.atan2(dy, dx);
 
-          const dash = this.dashAt(shown++);
-          dash.x = source.x + ux * head;
-          dash.y = source.y + uy * head;
-          dash.rotation = angle;
-          dash.scaleX = (tail - head) / DASH_TILE;
-          dash.scaleY = WIRE_WIDTH / DASH_TILE;
-          dash.tint = colour;
-          dash.alpha = 0.75;
-        }
+        // One tile to a stride, so the pattern is the same size on every wire
+        // however long the wire is.
+        wire.tileScale.set(stride / DASH_TILE.width, WIRE_WIDTH / DASH_TILE.height);
+        wire.tilePosition.x = offset;
+        wire.tint = colour;
+        wire.alpha = 0.75;
+        wire.visible = true;
       }
     });
 
-    // Anything left over from a busier frame is parked off the board rather
-    // than removed: the container is rebuilt from this list every frame.
-    for (let spare = shown; spare < this.dashes.length; spare++) {
-      this.dashes[spare]!.alpha = 0;
+    // Anything left over from a busier frame is hidden rather than removed:
+    // the list is what the next frame draws from.
+    for (let spare = shown; spare < this.wires.length; spare++) {
+      this.wires[spare]!.visible = false;
     }
   }
 
-  /** The particle for the nth dash on screen, made once and reused after that. */
-  private dashAt(index: number): Particle {
-    const existing = this.dashes[index];
+  /** The sprite for the nth wire on screen, made once and reused after that. */
+  private wireAt(index: number): TilingSprite {
+    const existing = this.wires[index];
     if (existing) return existing;
 
-    const dash = new Particle({ texture: this.brushes.dash, anchorX: 0, anchorY: 0.5 });
-    this.dashes.push(dash);
-    this.wireLayer.addParticle(dash);
-    return dash;
+    const wire = new TilingSprite({ texture: this.brushes.dash });
+    wire.anchor.set(0, 0.5);
+    this.wires.push(wire);
+    this.wireLayer.addChild(wire);
+    return wire;
   }
+
 
   private drawLiveEdges(state: GameState, drag: DragHint): void {
     this.liveEdgeLayer.clear();
@@ -773,6 +772,15 @@ function hexagonPath(graphics: Graphics, x: number, y: number, radius: number): 
 const WIRE_WIDTH = 2.5;
 
 /** Dash and gap, in world units. */
+/**
+ * How far inside a node the run of dashes is cut, as a share of its radius.
+ *
+ * Far enough in that a dash of full length is hidden before it has to be cut
+ * short: a node is at least fifteen across, so half of that is more than a
+ * dash is long.
+ */
+const UNDER_NODE = 0.5;
+
 const DASH_LENGTH = 7;
 const DASH_GAP = 7;
 /** World units a dash travels per second. */

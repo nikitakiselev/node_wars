@@ -119,9 +119,9 @@ export function convertNode(
 
   node.points -= cost;
   node.kind = kind;
-  // Levelling from the start: a hub is built to even things out, and the one
-  // mode that does that without being asked is the one it should arrive on.
-  // Round robin is the choice you make after seeing what the default does.
+  // Equal shares from the start: what a new hub does should be readable off
+  // the board without opening it. Deciding for the player comes later, if the
+  // player asks for it.
   if (kind === 'balancer') node.share = DEFAULT_SHARE;
   return true;
 }

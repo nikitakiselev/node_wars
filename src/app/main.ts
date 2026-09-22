@@ -15,10 +15,11 @@ import { defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { upgradeCost } from '../core/levels';
 import { wireMidpoint } from '../core/geometry';
 import { isEliminated } from '../core/simulation';
-import type { GameNode, NodeKind, ShareMode } from '../core/state';
+import type { GameNode, ShareMode } from '../core/state';
 import { upgradeNode } from '../core/upgrade';
 import { cutWire, wiresFrom } from '../core/wires';
 import { standingsFor } from '../core/standings';
+import { kindBadge } from './kind-marks';
 import { outputNames } from './outputs';
 import { SEND_MODES, type SendMode } from '../input/fractions';
 import { PointerControls } from '../input/pointer';
@@ -656,18 +657,23 @@ setupForm.addEventListener('change', () => {
 });
 
 // Escape closes a <dialog> by default. On the very first visit that would
-// drop the player into a match they never started, so it is refused until
-// one has been.
-for (const sheet of [dialog, resumeDialog]) {
-  sheet.addEventListener('cancel', (event) => {
-    if (!started) event.preventDefault();
-  });
-}
+// drop the player into a match they never started, so the setup dialog
+// refuses it until one has been. The resume prompt is different: escaping it
+// has an answer that costs nothing, and it is allowed to give it.
+dialog.addEventListener('cancel', (event) => {
+  if (!started) event.preventDefault();
+});
 
 resumeDialog.addEventListener('close', () => {
-  // Turning the saved match down is the only way into the setup dialog from
-  // here; the saved board is already on screen for the other answer.
-  if (resumeDialog.returnValue !== 'resume') {
+  /*
+   * Only saying so turns the saved match down.
+   *
+   * Escape closes a dialog with no answer at all, and a prompt with no answer
+   * has to fall to the side that costs nothing — which is keeping the match
+   * that is already on the screen. Reading silence as "start a new one"
+   * threw away a saved game for a keypress that means "never mind".
+   */
+  if (resumeDialog.returnValue === 'new') {
     openSettings();
     return;
   }
@@ -810,18 +816,6 @@ interface NodeAction {
 }
 
 /**
- * The silhouette on the button that builds a node into a kind.
- *
- * The same fan the node itself will wear once it is built, so the button
- * teaches the mark rather than standing in for it. A new buildable kind needs
- * a mark here and a silhouette in the renderer — a kind is a row in a table,
- * but a picture of one is a picture.
- */
-const CONVERSION_MARKS: Partial<Record<NodeKind, () => SVGElement>> = {
-  balancer: fanMark,
-};
-
-/**
  * The marks on the ring's buttons, drawn rather than typed.
  *
  * A character is centred by its line box, not by its ink, and the ink of a
@@ -894,18 +888,6 @@ function resetMark(): SVGElement {
     // The head sits at the start of that arc and points the way back along
     // it, which is the direction the node is being sent.
     line(svg, 'M16.6 7.4L19.9 7.4M16.6 7.4L16.6 10.7');
-  });
-}
-
-function fanMark(): SVGElement {
-  return svgMark((svg) => {
-    for (const [x, y] of [
-      [5, 5],
-      [12, 3],
-      [19, 5],
-    ]) {
-      line(svg, `M12 20L${x} ${y}`);
-    }
   });
 }
 
@@ -1142,7 +1124,7 @@ function actionsFor(node: GameNode): NodeAction[] {
     const conversion = CONVERSIONS[kind]!;
     const cost = costOf(kind);
     actions.push({
-      mark: CONVERSION_MARKS[kind] ?? '•',
+      mark: () => kindBadge(kind),
       title: conversion.action,
       price: cost,
       disabled: node.points < cost,

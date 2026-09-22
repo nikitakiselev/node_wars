@@ -40,10 +40,13 @@ export const SHARE_MODES = {
 /**
  * What a hub shares by until it is told otherwise.
  *
- * The one mode that evens things out on its own, which is what a hub is built
- * for. Round robin is a choice made after watching the default work.
+ * The one that does the plainest thing: everything that arrives is cut into
+ * equal pieces and sent on. A hub arriving on a mode that quietly favours one
+ * output over another is a hub whose behaviour has to be worked out before it
+ * can be trusted; this one can be read off the board. The modes that decide
+ * something are choices to make afterwards.
  */
-export const DEFAULT_SHARE: ShareMode = 'adaptive';
+export const DEFAULT_SHARE: ShareMode = 'broadcast';
 
 /** The mode a node is set to, or the default if it is set to nothing known. */
 export function shareModeOf(node: Pick<GameNode, 'share'>): ShareMode {

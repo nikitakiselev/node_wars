@@ -13,17 +13,28 @@ export interface Brushes {
   /** Flat-topped hexagon: the body of a fortress. */
   bastion: Texture;
   mote: Texture;
-  /** One dash and the gap after it, repeated along a supply wire. */
+  /** One dash of a supply wire; the gaps between them are left undrawn. */
   dash: Texture;
 }
 
 /**
- * Side of the dash tile, in texture pixels.
+ * One dash and the gap that follows it, in texture pixels.
  *
- * A plain square, scaled to whatever a dash needs to be. Drawn larger than it
- * is shown so an edge stays clean when the board is zoomed right in.
+ * This is a *repeating* tile, not one dash: a whole wire is drawn as a single
+ * sprite with this pattern running along it, so the whole line is rasterised
+ * by one continuous mapping. Drawing each dash as its own sprite is what the
+ * renderer did before, and it could not be made to work — every dash met the
+ * pixel grid at its own offset and picked its own length, and because the
+ * dashes move, the pattern of longer and shorter ones travelled along the
+ * wire. Identical dashes in the arithmetic, a running wave on the screen.
+ *
+ * Four texture pixels to a world unit, so the tile still has something to
+ * show when the board is zoomed right in.
  */
-export const DASH_TILE = 16;
+export const DASH_TILE = { width: 56, height: 10 } as const;
+
+/** Share of the tile the dash itself takes up; the rest is the gap. */
+const DASH_FILL = 0.5;
 
 export function createBrushes(): Brushes {
   return {
@@ -53,14 +64,50 @@ export function createBrushes(): Brushes {
  */
 function dashTexture(): Texture {
   const canvas = document.createElement('canvas');
-  canvas.width = DASH_TILE;
-  canvas.height = DASH_TILE;
+  canvas.width = DASH_TILE.width;
+  canvas.height = DASH_TILE.height;
   const ctx = canvas.getContext('2d')!;
 
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, DASH_TILE, DASH_TILE);
+  /*
+   * The dash sits in the middle of its tile with the gap split either side,
+   * so the pattern joins itself cleanly however many times it repeats.
+   *
+   * Soft edges and rounded ends: the line is a couple of pixels thick at rest
+   * and a hard edge at that size is a row of steps. The blur is drawn inside
+   * the dash rather than beyond it, so two tiles never bleed into each other.
+   */
+  const length = DASH_TILE.width * DASH_FILL;
+  const margin = (DASH_TILE.width - length) / 2;
+  const thickness = DASH_TILE.height - 4;
 
-  return Texture.from(canvas);
+  ctx.filter = 'blur(1.6px)';
+  ctx.fillStyle = '#ffffff';
+  roundedRect(ctx, margin, 2, length, thickness, thickness / 2);
+  ctx.fill();
+
+  const texture = Texture.from(canvas);
+  // The tile is repeated along the wire and is usually smaller on screen than
+  // it is in the texture; without these it would be sampled one pixel in four.
+  texture.source.addressMode = 'repeat';
+  texture.source.autoGenerateMipmaps = true;
+  return texture;
+}
+
+function roundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+): void {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
 }
 
 function radialTexture(size: number, stops: [number, string][]): Texture {

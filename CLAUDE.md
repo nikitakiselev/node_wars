@@ -102,8 +102,10 @@ two hops of the fighting.
 
 Three ways to share, `SHARE_MODES` in `core/balancer.ts`, under the load
 balancer's own names because that is what the node is. A new hub arrives on
-**Adaptive** (`DEFAULT_SHARE`) — levelling is what a hub is built for, and
-round robin is the choice a player makes after watching the default work. **Round Robin** sends
+**Broadcast** (`DEFAULT_SHARE`): equal pieces to everyone is the one thing
+that can be read off the board without opening the panel, and a mode that
+decides something is a choice to make afterwards. A bot sets its own hubs to
+Adaptive, for its own reason — it wants the front fed before the rear. **Round Robin** sends
 the whole parcel to the next output in turn. **Adaptive** and **Broadcast**
 both cut the parcel up and send to every output at once; they differ only in
 the weights — Broadcast splits evenly, Adaptive first brings whoever is behind
@@ -142,14 +144,19 @@ hubs" back into the game, since a dead end has nothing to share out. Going
 back to `base` is free, and only kinds somebody built can go back: a fortress
 is terrain, and demoting it would be rewriting the map.
 
-Adding a kind touches four places: placement in `mapgen.ts` — or a row in
+Adding a kind touches five places: placement in `mapgen.ts` — or a row in
 `CONVERSIONS` if it is built rather than dealt — a row in `BY_LEVEL`
-(`core/kinds.ts`), `drawKindMark` (renderer) and the kinds table in
-`app/help.ts`, whose test refuses a kind whose numbers are not read from the
-table the game plays by. A buildable kind also needs a mark on its button
-(`CONVERSION_MARKS` in `main.ts`): a kind is a row, but a picture of one is a
-picture. `mapgen.test.ts` asserts the generator deals no kind that appears in
-`CONVERSIONS`. The bot values a node from those multipliers, so it needs no
+(`core/kinds.ts`), `drawKindMark` (renderer), a badge in `app/kind-marks.ts`,
+and a line in `KINDS` in `app/help.ts`. A kind is a row in a table, but a
+picture of one is a picture, and it has to be drawn twice: once into Pixi for
+the board and once as SVG for the page. **Those are the only two.** The
+button that offers to build a kind and the rules panel that explains it both
+read `kind-marks.ts`, because three drawings of one shape is a promise nobody
+keeps.
+
+Its tests refuse a kind whose numbers are not read from the table the game
+plays by, and refuse one that `KINDS` does not explain; `mapgen.test.ts`
+asserts the generator deals no kind that appears in `CONVERSIONS`. The bot values a node from those multipliers, so it needs no
 separate table. Kinds are shown by silhouette, never by colour — colour
 already means ownership.
 
@@ -553,24 +560,45 @@ there too, which is why the handlers come first in the file.
 - **Node rings are one `Graphics` per node**, redrawn only when a signature of
   owner and quantised fill changes. A single shared `Graphics` re-tessellates
   the whole board every frame and is most of what the game costs.
-- **Every dash of every supply wire is a particle, not a stroke.** The dashes
-  run, so whatever draws them is rebuilt every frame, and a `Graphics` whose
-  path changed is re-tessellated on the CPU. Measured with 53 wires on screen,
-  against a 16.7ms frame:
+- **A supply wire is one sprite with the dash pattern repeating inside it**
+  (`TilingSprite` in `drawWires`), never a sprite per dash. This was learned
+  the expensive way and the earlier answer is still worth knowing, because it
+  was right about cost and wrong about everything else. Measured with 53 wires
+  on screen, against a 16.7 ms frame:
 
   | how | cost |
   |---|---|
   | a `stroke()` per dash | 1.83 ms |
   | one `stroke()` per player | 0.94 ms |
   | a `TilingSprite` per wire | 1.31 ms |
-  | **a particle per dash** | **0.15 ms** |
+  | a particle per dash | 0.15 ms |
 
-  The tiling sprite is the instructive one: it looks like the cheap answer —
-  the geometry never changes and the dashes move by texture offset — but each
-  one is its own draw call with its own uniforms, and fifty of those cost more
-  than one tessellated batch. Particles win because they share a texture and a
-  container, which is one draw call for the whole board. It is the same thing
-  the squad streams already do.
+  Re-measured on the strip renderer, on a hundred-node board, timing
+  `renderer.draw` and `app.render` together over three hundred frames: a wire
+  costs **0.0043 ms**, so twenty of them — what a real board carries — come to
+  0.21 ms of a 16.7 ms frame. Even the absurd case, every node a hub with
+  every edge wired, is 296 wires for 1.27 ms. The old row above says 53 cost
+  1.31 ms; whatever that was true of, it is not true now, so do not reach for
+  particles again on the strength of it.
+
+  A particle per dash won by a mile and looked wrong. Each dash is a few
+  pixels long on a line that is rarely square to the screen, so each one met
+  the pixel grid at its own offset and rounded to its own length — and since
+  they move, the pattern of longer and shorter dashes travelled along the
+  wire as a running wave. The arithmetic was exact: measured frame by frame,
+  every dash was 7.00 long and the run advanced 0.43 a frame. It was the
+  rasterising that disagreed, and no amount of softening the tile fixed it,
+  because the fault was one sprite per dash.
+  
+  A strip per wire has one mapping for the whole line, so its dashes cannot
+  disagree with each other, and it moves by sliding the texture rather than
+  by moving anything. The cost is a draw call per wire. That was the wrong
+  trade at 53 wires and is the right one now: bots wire only their few hubs,
+  so a board carries a handful.
+- **The strip is cut off well inside both nodes, not clear of them**
+  (`UNDER_NODE`). Its ends are square, and a square end is only right where
+  nothing can see it — the node disc is opaque and covers it, so what is left
+  is a line of dashes running out from under one node and in under the other.
 - **`?autopause=off` keeps a match running in an unfocused window**, which is
   what automated runs want; `readOptions` in `app/options.ts` parses it.
   Escape still pauses by hand. `?controls=touch` lays the phone controls out on
