@@ -17,7 +17,16 @@ import { wireMidpoint } from '../core/geometry';
 import { isEliminated } from '../core/simulation';
 import type { GameNode, ShareMode } from '../core/state';
 import { upgradeNode } from '../core/upgrade';
-import { cutWire, wiresFrom } from '../core/wires';
+import {
+  DEFAULT_WIRE_FILL,
+  DEFAULT_WIRE_SHARE,
+  WIRE_FILLS,
+  WIRE_SHARES,
+  cutWire,
+  wiresFrom,
+  type WireFill,
+  type WireShare,
+} from '../core/wires';
 import { standingsFor } from '../core/standings';
 import { kindBadge } from './kind-marks';
 import { outputNames } from './outputs';
@@ -154,6 +163,7 @@ const hud = {
   verdictText: document.querySelector<HTMLElement>('[data-verdict]')!,
   dim: document.querySelector<HTMLElement>('[data-dim]')!,
   menu: document.querySelector<HTMLElement>('.menu')!,
+  fps: document.querySelector<HTMLElement>('[data-fps]')!,
   actionsEmpty: document.querySelector<HTMLElement>('[data-actions-empty]')!,
   bar: document.querySelector<HTMLElement>('[data-bar]')!,
   actions: document.querySelector<HTMLElement>('.actions')!,
@@ -614,6 +624,8 @@ function buildSettingsForm(): void {
     { easy: { label: 'Спокойно' }, normal: { label: 'Ровно' }, hard: { label: 'Жёстко' } },
     settings.difficulty,
   );
+  buildChoices(dialog, 'wireFill', WIRE_FILLS, settings.wireFill ?? DEFAULT_WIRE_FILL);
+  buildChoices(dialog, 'wireShare', WIRE_SHARES, settings.wireShare ?? DEFAULT_WIRE_SHARE);
 }
 
 /** One option per possible opponent, named the way a person would say it. */
@@ -635,6 +647,10 @@ function settingsFromForm(seed: number): MatchSettings {
     aiCount: Number(readChoice(dialog, 'aiCount')),
     difficulty: readChoice(dialog, 'difficulty') as Difficulty,
     portrait: portraitScreen(),
+    // A form built before these existed reads as empty; a match started from
+    // it plays by what the game played by before they were choices.
+    wireFill: (readChoice(dialog, 'wireFill') || DEFAULT_WIRE_FILL) as WireFill,
+    wireShare: (readChoice(dialog, 'wireShare') || DEFAULT_WIRE_SHARE) as WireShare,
   };
 }
 
@@ -1218,8 +1234,33 @@ app.ticker.add((ticker) => {
   renderer.draw(match.state, match.alpha, STEP_SECONDS, controls.hint);
   paintHud();
   paintOverlays();
+  paintFps(ticker.deltaMS);
   keepSaved();
 });
+
+/**
+ * Frames a second, averaged and written four times a second.
+ *
+ * Averaged because a single frame's length says nothing — every machine has
+ * the odd long one, and a figure that jumps on every frame is unreadable.
+ * Written rarely for the same reason, and because touching the DOM on the
+ * frame is the one thing a frame counter must not cost.
+ */
+function paintFps(deltaMS: number): void {
+  framesSeen++;
+  msSeen += deltaMS;
+  if (msSeen < FPS_WINDOW) return;
+
+  hud.fps.textContent = `${Math.round((framesSeen * 1000) / msSeen)} fps`;
+  framesSeen = 0;
+  msSeen = 0;
+}
+
+/** How long a reading is gathered over, in milliseconds. */
+const FPS_WINDOW = 250;
+
+let framesSeen = 0;
+let msSeen = 0;
 
 /**
  * Writes the match down every couple of seconds.

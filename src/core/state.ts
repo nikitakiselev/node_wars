@@ -93,6 +93,13 @@ export interface GameState {
    * sometimes missing is a second case to revive and to test.
    */
   wires: number[][];
+  /**
+   * How full a node must be before its wire fires, and how much of what it
+   * holds then goes. Chosen when the match is started; absent in a match
+   * saved before they were choices at all, which reads as the old rule.
+   */
+  wireFill?: number;
+  wireShare?: number;
   squads: Squad[];
   /** Seconds of simulated time since the match began. */
   time: number;

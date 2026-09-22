@@ -3,6 +3,14 @@ import { generateMap } from '../core/mapgen';
 import { createRng } from '../core/rng';
 import { step } from '../core/simulation';
 import type { GameState, OwnerId } from '../core/state';
+import {
+  DEFAULT_WIRE_FILL,
+  DEFAULT_WIRE_SHARE,
+  WIRE_FILLS,
+  WIRE_SHARES,
+  type WireFill,
+  type WireShare,
+} from '../core/wires';
 import { MAX_PLAYERS } from '../render/theme';
 import { FixedTimestep } from './loop';
 
@@ -60,6 +68,10 @@ export interface MatchSettings {
   difficulty: Difficulty;
   /** Stands the board on its end, for a screen that is taller than it is wide. */
   portrait?: boolean;
+  /** How full a node has to be before its supply wire fires. */
+  wireFill?: WireFill;
+  /** How much of what it holds then goes down the wire. */
+  wireShare?: WireShare;
 }
 
 export function defaultSettings(): MatchSettings {
@@ -70,6 +82,8 @@ export function defaultSettings(): MatchSettings {
     aiCount: 1,
     difficulty: 'normal',
     portrait: false,
+    wireFill: DEFAULT_WIRE_FILL,
+    wireShare: DEFAULT_WIRE_SHARE,
   };
 }
 
@@ -124,6 +138,14 @@ export class Match {
       playerCount: aiCount + 1,
       neutralGarrison: MAP_DIFFICULTIES[settings.mapDifficulty].neutralGarrison,
     });
+
+    // The wire rule belongs to the match the way its board does, so it is
+    // written into the state — which is what `step` has to go on, and what
+    // travels in a save. A resumed board keeps whatever it was played by.
+    if (!resumed) {
+      this.state.wireFill = WIRE_FILLS[settings.wireFill ?? DEFAULT_WIRE_FILL].fill;
+      this.state.wireShare = WIRE_SHARES[settings.wireShare ?? DEFAULT_WIRE_SHARE].share;
+    }
 
     this.bots = [];
     for (let player = 1; player <= aiCount; player++) {

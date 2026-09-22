@@ -13,11 +13,20 @@
  * in at all.
  */
 /*
- * Bump this whenever a file that has no hash in its name changes — the page
- * shell, the manifest, an icon. Everything under the old name is thrown away
- * on activation; a hashed asset needs no bump, since its name already changed.
+ * Stamped by the build, never edited by hand.
+ *
+ * It used to be a number bumped whenever an unhashed file changed — the page
+ * shell, the manifest, an icon — and that made every update depend on
+ * somebody remembering. A worker is only replaced when its own file differs
+ * byte for byte, so a forgotten bump meant no new worker, no reload, and a
+ * player left on the old build until they cleared the cache by hand.
+ *
+ * Now the stamp is the build's own fingerprint: every build produces a
+ * different worker, the browser installs it, and the page reloads itself.
+ * `vite.config.ts` writes it in; the placeholder is what runs in dev, where
+ * no worker is registered at all.
  */
-const CACHE = 'node-wars-v9';
+const CACHE = 'node-wars-__BUILD__';
 
 /** Everything needed to open the game cold, before a single asset is known. */
 const SHELL = ['./', './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png'];

@@ -1262,6 +1262,24 @@ button,
 }
 
 /*
+ * Frames a second, in the corner nothing else wants.
+ *
+ * Sat at the end of the top row rather than floated over the board, so it
+ * moves with the rest of the HUD and never lands on a node. Dim and in
+ * figures of one width, so a number changing does not tug at the eye.
+ */
+.fps {
+  flex: none;
+  align-self: flex-start;
+  min-width: 3.4em;
+  text-align: right;
+  color: #4d6068;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
  * The developer switch, worn on the edge of the window.
  *
  * It changes what the game charges, so a match played under it is not a match

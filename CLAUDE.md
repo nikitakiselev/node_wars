@@ -395,9 +395,19 @@ not advance: the ring stays where it was and the dimming reads as opacity 0
 however correct the stylesheet is. Read the computed style with the transition
 removed, or look at it by hand.
 
-**Bump `CACHE` in `sw.js` whenever a file with no hash in its name changes** —
-the page shell, the manifest, an icon — or an installed phone keeps serving the
-old one for ever. A hashed asset never needs it; its name already changed.
+**Nothing about the cache is bumped by hand any more, and it must not go back
+to being.** The cache name is stamped by the build: `stampWorker` in
+`vite.config.ts` fingerprints everything in `dist` — after `public` has been
+copied, so the manifest and the icons count — and writes it into `sw.js` in
+place of `__BUILD__`.
+
+That is not tidiness. A browser replaces a service worker only when its file
+differs byte for byte, so while the name was a number somebody edited, a
+forgotten bump did not mean a stale entry — it meant **no new worker, no
+`controllerchange`, no reload, and a player left on the old build until they
+cleared the cache by hand.** An update that depends on being remembered is an
+update that does not happen. Identical builds still produce an identical
+worker, so nobody is reloaded for nothing.
 
 Two things follow. Manrope is carried in the build (`src/fonts`), not fetched
 from Google, since a game that opens in a tunnel cannot wait on a font server.
@@ -431,11 +441,19 @@ wire, every frame. Two wires cost nothing; sixty are most of a frame. Fixing
 the bot's own logistics instead beat wires on all three numbers at once — see
 the budget note in the bot section.
 
-Growth clamps at capacity, so there is never a literal overflow to forward —
-"send on overflow" is realised as "at capacity, send half of what it holds".
-Half of what it *holds*, not everything above a fixed garrison: a node sitting
-on a stockpile has to stay worth attacking rather than becoming a free capture
-the moment it forwards.
+**How full, and how much, are set when the match is started** (`WIRE_FILLS`
+and `WIRE_SHARES` in `core/wires.ts`; the chosen numbers live on `GameState`
+as `wireFill` and `wireShare`). They are read from the state rather than
+passed in, because a wire is flushed from inside `step`, which has only the
+state to go on — and because they belong to a match the way its board does and
+travel in its save. A match saved before they were choices has neither field,
+which reads as the rule it was played by: full, and a half.
+
+A share of what the node *holds*, not everything above a fixed garrison, so a
+wire is a rate rather than a ceiling — a node sitting on a stockpile sends the
+same share as an empty one. The share may be set to everything, which empties
+the node each time it fires and makes it a free capture at that moment. That
+used to be forbidden and is now the player's call.
 
 ## Winning and losing
 
@@ -599,6 +617,11 @@ there too, which is why the handlers come first in the file.
   (`UNDER_NODE`). Its ends are square, and a square end is only right where
   nothing can see it — the node disc is opaque and covers it, so what is left
   is a line of dashes running out from under one node and in under the other.
+- **Frames a second are averaged over a quarter of a second and written to
+  the DOM at that rate**, never on the frame. A single frame's length says
+  nothing, and a figure that changes sixty times a second cannot be read —
+  and writing to the DOM on the frame is the one cost a frame counter must
+  not have.
 - **`?autopause=off` keeps a match running in an unfocused window**, which is
   what automated runs want; `readOptions` in `app/options.ts` parses it.
   Escape still pauses by hand. `?controls=touch` lays the phone controls out on

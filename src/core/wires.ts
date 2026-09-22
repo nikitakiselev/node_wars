@@ -1,16 +1,42 @@
 import { sendSquad } from './orders';
 import { NEUTRAL, type GameState, type OwnerId } from './state';
 
-/** Share of a filled node that goes down its wire; the rest stays to defend. */
-export const WIRE_SEND_FRACTION = 0.5;
+/**
+ * How full a node has to be before its wire fires.
+ *
+ * Set for the whole match when it is started. Waiting for the top is a rear
+ * that saves up and sends in useful lumps; a lower mark is a rear that never
+ * stops moving and never holds anything worth taking.
+ */
+export const WIRE_FILLS = {
+  full: { label: '100%', fill: 1 },
+  most: { label: '75%', fill: 0.75 },
+  half: { label: '50%', fill: 0.5 },
+} as const;
+
+/** How much of what the node holds goes down the wire when it fires. */
+export const WIRE_SHARES = {
+  quarter: { label: '¼', share: 0.25 },
+  half: { label: '½', share: 0.5 },
+  most: { label: '¾', share: 0.75 },
+  all: { label: 'Всё', share: 1 },
+} as const;
+
+export type WireFill = keyof typeof WIRE_FILLS;
+export type WireShare = keyof typeof WIRE_SHARES;
+
+/** What a match plays by when it was saved before either was a setting. */
+export const DEFAULT_WIRE_FILL: WireFill = 'full';
+export const DEFAULT_WIRE_SHARE: WireShare = 'half';
 
 /**
  * Supply wires.
  *
  * A bot issues a dozen orders a second and a player cannot, and the gap is
  * almost entirely logistics — hauling reserves from a quiet rear to the
- * fighting. A wire does that hauling: once a node fills up and stops earning,
- * half of it goes to the neighbour the wire points at.
+ * fighting. A wire does that hauling: once a node has filled up as far as the
+ * match asks, a share of what it holds goes to the neighbour it points at.
+ * How full, and how much, are chosen when the match is started.
  *
  * They carry, they do not conquer. A wire only runs between two nodes you
  * already hold, so choosing what to attack stays a decision you make.
@@ -90,6 +116,23 @@ export function cutWire(
  * they do not fill up, and `flushBalancers` is the one rule that empties them.
  * Two rules on one node would argue about who sent what.
  */
+/**
+ * The two numbers this match plays by.
+ *
+ * Read from the state rather than taken as arguments, because a wire is
+ * flushed from inside `step`, which has only the state to go on — and because
+ * they belong to a match the way its board does, and travel in its save.
+ * A match saved before they existed has neither, and reads as what it was
+ * played by.
+ */
+function fillOf(state: GameState): number {
+  return state.wireFill ?? WIRE_FILLS[DEFAULT_WIRE_FILL].fill;
+}
+
+function shareOf(state: GameState): number {
+  return state.wireShare ?? WIRE_SHARES[DEFAULT_WIRE_SHARE].share;
+}
+
 export function flushWires(state: GameState): void {
   state.nodes.forEach((source, fromId) => {
     const wires = state.wires[fromId];
@@ -104,14 +147,14 @@ export function flushWires(state: GameState): void {
     if (live.length !== wires.length) state.wires[fromId] = live;
 
     if (source.kind === 'balancer') return;
-    if (source.points < source.capacity) return;
+    if (source.points < source.capacity * fillOf(state)) return;
 
     const toId = live[0];
     if (toId === undefined) return;
 
-    // Half of whatever it holds, not everything above some fixed garrison: a
-    // node sitting on a stockpile must stay worth attacking rather than
-    // becoming a free capture the moment it forwards.
-    sendSquad(state, source.owner, fromId, toId, WIRE_SEND_FRACTION);
+    // A share of whatever it holds, not everything above some fixed garrison:
+    // a node sitting on a stockpile sends the same share as an empty one, so
+    // a wire is a rate rather than a ceiling.
+    sendSquad(state, source.owner, fromId, toId, shareOf(state));
   });
 }

@@ -3,7 +3,8 @@ import { makeNode, makeState } from './fixtures';
 import { applyLevel } from './levels';
 import { NEUTRAL, type GameState } from './state';
 import {
-  WIRE_SEND_FRACTION,
+  DEFAULT_WIRE_SHARE,
+  WIRE_SHARES,
   clearWire,
   cutWire,
   flushWires,
@@ -22,6 +23,9 @@ function board(): GameState {
     [[0, 1]],
   );
 }
+
+/** What a match plays by when it was started without saying. */
+const DEFAULT_SHARE = WIRE_SHARES[DEFAULT_WIRE_SHARE].share;
 
 function fill(state: GameState, id: number) {
   const node = state.nodes[id]!;
@@ -110,7 +114,7 @@ describe('what a wire carries', () => {
     expect(state.squads).toHaveLength(1);
     expect(state.squads[0]!.from).toBe(0);
     expect(state.squads[0]!.to).toBe(1);
-    expect(state.squads[0]!.amount).toBe(Math.floor(before * WIRE_SEND_FRACTION));
+    expect(state.squads[0]!.amount).toBe(Math.floor(before * DEFAULT_SHARE));
   });
 
   test('a node with a stockpile keeps half of it, not half of its ceiling', () => {
