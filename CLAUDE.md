@@ -319,6 +319,29 @@ navigating, so nothing asks whether a new build exists: `registerWorker` calls
 `registration.update()` on every wake and reloads the page when a new worker
 takes charge, saving the match first.
 
+The ring of actions around a selected node is laid out **evenly round the
+circle from the top**, and the board behind it is **dimmed rather than
+blurred**, with a soft hole around the node (`paintDim` in `main.ts`). Three
+things there are load-bearing. The hole exists because this is a real-time
+game: a board that cannot be read is a board the other player is moving on
+unseen, so the node, its ring and its neighbours stay lit. The layer never
+takes a pointer event and is **never taken out of the document** — hiding it as
+well as fading it gave the fade two switches, and after the first time it was
+put away the class went on a layer that was still `display:none`. And the hole
+is written through custom properties, only when it has actually moved, because
+this runs on every frame of a sixty-hertz loop.
+
+Its state (`lastHole`) is declared at the top of the file with the rest, not
+beside `paintDim`: `fitBoard` paints the overlays before the first frame, and
+a `let` further down is in its dead zone when it does — a black screen, not a
+subtle bug. This is the same rule as the zoom rail's.
+
+**Verifying any of this in an automated browser tab is misleading.** The tab
+runs in the background, where `requestAnimationFrame` and CSS transitions do
+not advance: the ring stays where it was and the dimming reads as opacity 0
+however correct the stylesheet is. Read the computed style with the transition
+removed, or look at it by hand.
+
 **Bump `CACHE` in `sw.js` whenever a file with no hash in its name changes** —
 the page shell, the manifest, an icon — or an installed phone keeps serving the
 old one for ever. A hashed asset never needs it; its name already changed.

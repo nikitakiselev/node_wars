@@ -137,12 +137,24 @@ const hud = {
   seed: document.querySelector<HTMLElement>('[data-seed]')!,
   verdict: document.querySelector<HTMLElement>('.verdict')!,
   verdictText: document.querySelector<HTMLElement>('[data-verdict]')!,
+  dim: document.querySelector<HTMLElement>('[data-dim]')!,
   actions: document.querySelector<HTMLElement>('.actions')!,
   actionRing: document.querySelector<HTMLElement>('[data-actions-ring]')!,
   actionNote: document.querySelector<HTMLElement>('[data-actions-note]')!,
   pause: document.querySelector<HTMLElement>('.pause')!,
   cutWire: document.querySelector<HTMLButtonElement>('[data-cut-wire]')!,
 };
+
+/**
+ * Where the clear circle in the dimming layer was last put, or null when the
+ * board is not dimmed at all.
+ *
+ * Declared up here with the rest of the state rather than beside the function
+ * that uses it: `fitBoard` paints the overlays before the first frame is
+ * drawn, and a `let` further down the file is not yet initialised when it
+ * does — which is a black screen and an error panel, not a subtle bug.
+ */
+let lastHole: Hole | null = null;
 
 // A phone's footer holds one button, so the seed goes where the rest of the
 // small print already is: the menu behind it.
@@ -636,6 +648,7 @@ function paintOverlays(): void {
     hud.actions.hidden = true;
     hud.cutWire.hidden = true;
     zoomRail.hidden = true;
+    paintDim(null);
     return;
   }
 
@@ -741,6 +754,7 @@ function paintActions(): void {
 
   if (!node || node.owner !== HUMAN) {
     hud.actions.hidden = true;
+    paintDim(null);
     if (node && node.owner !== HUMAN) controls.clearSelection();
     return;
   }
@@ -750,14 +764,74 @@ function paintActions(): void {
   hud.actions.style.left = `${at.x}px`;
   hud.actions.style.top = `${at.y}px`;
 
-  layOutRing(node.id, actionsFor(node), at.radius);
+  const size = buttonSize();
+  const radius = at.radius + size / 2 + RING_GAP;
+
+  layOutRing(node.id, actionsFor(node), radius);
   hud.actionNote.textContent = noteFor(node);
-  hud.actionNote.style.transform = `translate(-50%, ${at.radius + NOTE_GAP}px)`;
+  hud.actionNote.style.transform = `translate(-50%, ${radius + size / 2 + NOTE_GAP}px)`;
+
+  // The clear circle takes in the whole ring, so nothing the player is about
+  // to press is standing in the dark.
+  paintDim({ x: at.x, y: at.y, radius: radius + size });
 }
 
-/** How far outside the node the buttons and the note sit, in screen pixels. */
-const RING_GAP = 12;
-const NOTE_GAP = 26;
+/** How far outside the node the buttons sit, and the note below them. */
+const RING_GAP = 10;
+const NOTE_GAP = 12;
+
+/**
+ * Dims the board around the node being given orders.
+ *
+ * Darkening rather than blurring, and with a hole in it rather than over the
+ * whole board: this is a real-time game, and a board that cannot be read is a
+ * board on which the other player is moving unseen. The node, its ring and
+ * its neighbours stay exactly as bright as they were, so the throw you were
+ * about to make is still there to make.
+ *
+ * Written through custom properties rather than by rebuilding the gradient,
+ * and only when the hole has actually moved: this is called on every frame of
+ * a sixty-hertz loop, and a full-screen layer that repaints for nothing is
+ * the sort of cost that only ever shows up on somebody else's phone.
+ *
+ * The layer is never taken out of the document, only faded. Hiding it as well
+ * meant the fade had two switches, and the one that was off decided: after
+ * the first time it was put away the class went on a layer that was still
+ * display:none, and the board never dimmed again.
+ */
+function paintDim(hole: Hole | null): void {
+  if (!hole) {
+    lastHole = null;
+    hud.dim.classList.remove('dim--on');
+    return;
+  }
+
+  if (moved(lastHole, hole)) {
+    hud.dim.style.setProperty('--hole-x', `${hole.x}px`);
+    hud.dim.style.setProperty('--hole-y', `${hole.y}px`);
+    hud.dim.style.setProperty('--hole-r', `${hole.radius}px`);
+  }
+
+  lastHole = hole;
+  hud.dim.classList.add('dim--on');
+}
+
+interface Hole {
+  x: number;
+  y: number;
+  radius: number;
+}
+
+/** Below a pixel nothing is visible, and the layer is expensive to repaint. */
+function moved(was: Hole | null, now: Hole): boolean {
+  if (was === null) return true;
+  return (
+    Math.abs(was.x - now.x) >= 1 ||
+    Math.abs(was.y - now.y) >= 1 ||
+    Math.abs(was.radius - now.radius) >= 1
+  );
+}
+
 
 /**
  * Places the buttons on an arc to the right of the node.
@@ -772,12 +846,9 @@ const NOTE_GAP = 26;
  * of. What does change every frame — where each button sits, and whether it
  * can be afforded — is written to the elements that are already there.
  */
-function layOutRing(nodeId: number, actions: NodeAction[], nodeRadius: number): void {
+function layOutRing(nodeId: number, actions: NodeAction[], radius: number): void {
   ringActions = actions;
 
-  const size = buttonSize();
-  const radius = nodeRadius + size / 2 + RING_GAP;
-  const step = Math.min(MAX_ARC_STEP, (size + 6) / radius);
   const signature = [nodeId, ...actions.map((action) => action.title)].join('|');
 
   if (signature !== ringSignature) {
@@ -785,6 +856,10 @@ function layOutRing(nodeId: number, actions: NodeAction[], nodeRadius: number): 
     hud.actionRing.replaceChildren();
 
     actions.forEach((action, index) => {
+      const slot = document.createElement('span');
+      slot.className = 'actions__slot';
+      slot.style.setProperty('--i', String(index));
+
       const button = document.createElement('button');
       button.type = 'button';
       button.title = action.title;
@@ -802,20 +877,25 @@ function layOutRing(nodeId: number, actions: NodeAction[], nodeRadius: number): 
         app.render();
       });
 
-      hud.actionRing.appendChild(button);
+      slot.appendChild(button);
+      hud.actionRing.appendChild(slot);
     });
   }
 
+  const step = (Math.PI * 2) / actions.length;
+
   actions.forEach((action, index) => {
-    const button = hud.actionRing.children[index] as HTMLButtonElement | undefined;
-    if (!button) return;
+    const slot = hud.actionRing.children[index] as HTMLElement | undefined;
+    const button = slot?.firstElementChild as HTMLButtonElement | undefined;
+    if (!slot || !button) return;
 
     button.disabled = action.disabled ?? false;
-    // Written as custom properties rather than as a transform, so the
-    // stylesheet can add the press to the placement instead of replacing it.
-    const angle = (index - (actions.length - 1) / 2) * step;
-    button.style.setProperty('--x', `${Math.cos(angle) * radius}px`);
-    button.style.setProperty('--y', `${Math.sin(angle) * radius}px`);
+    // Evenly round the node from the top, clockwise. The seat carries the
+    // placement and the button carries the press, so pressing one never has
+    // to know where on the ring it is sitting.
+    const angle = -Math.PI / 2 + index * step;
+    slot.style.setProperty('--x', `${Math.cos(angle) * radius}px`);
+    slot.style.setProperty('--y', `${Math.sin(angle) * radius}px`);
   });
 }
 
@@ -823,9 +903,6 @@ function layOutRing(nodeId: number, actions: NodeAction[], nodeRadius: number): 
 let ringActions: NodeAction[] = [];
 /** The make-up of the ring as built, so it is rebuilt only when it changes. */
 let ringSignature = '';
-
-/** Widest the arc may open between two neighbouring buttons, in radians. */
-const MAX_ARC_STEP = 0.85;
 
 function buttonSize(): number {
   return touchPlayer ? 42 : 30;

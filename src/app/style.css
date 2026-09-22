@@ -734,6 +734,14 @@ button,
   .choice span {
     transition: none;
   }
+
+  .actions button {
+    animation: none;
+  }
+
+  .dim {
+    transition: none;
+  }
 }
 
 /* Rules */
@@ -980,10 +988,22 @@ button,
   inset: 0;
 }
 
-.actions button {
+/*
+ * One seat on the ring.
+ *
+ * The seat holds the placement and the button holds the press, so the two
+ * transforms never have to be written as one: a button that is both moved and
+ * squashed by the same property cannot be animated without recomputing where
+ * it sits.
+ */
+.actions__slot {
   position: absolute;
   left: 0;
   top: 0;
+  transform: translate(-50%, -50%) translate(var(--x, 0px), var(--y, 0px));
+}
+
+.actions button {
   pointer-events: auto;
   display: grid;
   place-items: center;
@@ -999,7 +1019,27 @@ button,
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
-  transform: translate(-50%, -50%) translate(var(--x, 0px), var(--y, 0px));
+  /* Backwards, so a button is already small and clear before its turn comes. */
+  animation: action-pop 200ms cubic-bezier(0.2, 0.9, 0.25, 1.25) backwards;
+  animation-delay: calc(var(--i, 0) * 32ms);
+}
+
+/*
+ * The ring arriving.
+ *
+ * A wave rather than all at once: the order the buttons land in is the order
+ * they are read in, and a fifth of a second is long enough to be seen and
+ * short enough that the next tap is never waiting on it.
+ */
+@keyframes action-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .actions button:disabled {
@@ -1022,8 +1062,41 @@ button,
 
 /* A finger has no hover: being held down is the only answer a tap can get. */
 .actions button:not(:disabled):active {
-  transform: translate(-50%, -50%) translate(var(--x, 0px), var(--y, 0px)) scale(0.9);
+  transform: scale(0.9);
   background: #bcd7dc;
+}
+
+/*
+ * The board, dimmed everywhere but around the node being given orders.
+ *
+ * Darkening rather than blurring, and with a hole rather than over the whole
+ * board: this is a real-time game, and a board you cannot read is a board on
+ * which the other player is moving unseen. The node, its ring and its
+ * neighbours stay exactly as bright as they were, so the throw you were about
+ * to make is still there to make.
+ *
+ * It never takes a pointer event. The layer is a hint about where to look,
+ * not a thing standing between the player and the board.
+ *
+ * The water is nearly black already, so what this actually dims is the bright
+ * things on it — the far nodes and their numbers. That is why the alpha is
+ * lower than it looks: half of it would be heavy on the one thing it touches.
+ */
+.dim {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at var(--hole-x, 50%) var(--hole-y, 50%),
+    transparent var(--hole-r, 0px),
+    rgba(2, 12, 18, 0.45) calc(var(--hole-r, 0px) * 1.9)
+  );
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+}
+
+.dim--on {
+  opacity: 1;
 }
 
 .actions svg {
