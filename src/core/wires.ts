@@ -6,12 +6,15 @@ import { NEUTRAL, type GameState, type OwnerId } from './state';
  *
  * Set for the whole match when it is started. Waiting for the top is a rear
  * that saves up and sends in useful lumps; a lower mark is a rear that never
- * stops moving and never holds anything worth taking.
+ * stops moving and never holds anything worth taking. At a tenth a node has
+ * barely begun to earn before it forwards, which makes the whole rear a
+ * pipe — and leaves nothing standing behind the front to fall back on.
  */
 export const WIRE_FILLS = {
   full: { label: '100%', fill: 1 },
   most: { label: '75%', fill: 0.75 },
   half: { label: '50%', fill: 0.5 },
+  trickle: { label: '10%', fill: 0.1 },
 } as const;
 
 /** How much of what the node holds goes down the wire when it fires. */
