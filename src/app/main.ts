@@ -1,13 +1,15 @@
 import { Application } from 'pixi.js';
 import type { Difficulty } from '../ai/ai';
+import { SHARE_MODES } from '../core/balancer';
+import { CONVERSIONS, conversionsFor, convertNode, revertNode } from '../core/convert';
 import { formatPoints } from '../core/format';
 import { defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { MAX_LEVEL, upgradeCost } from '../core/levels';
 import { wireMidpoint } from '../core/geometry';
 import { isEliminated } from '../core/simulation';
-import type { GameNode } from '../core/state';
+import type { GameNode, NodeKind, ShareMode } from '../core/state';
 import { upgradeNode } from '../core/upgrade';
-import { cutWire } from '../core/wires';
+import { cutWire, wiresFrom } from '../core/wires';
 import { standingsFor } from '../core/standings';
 import { SEND_MODES, type SendMode } from '../input/fractions';
 import { PointerControls } from '../input/pointer';
@@ -134,9 +136,9 @@ const hud = {
   seed: document.querySelector<HTMLElement>('[data-seed]')!,
   verdict: document.querySelector<HTMLElement>('.verdict')!,
   verdictText: document.querySelector<HTMLElement>('[data-verdict]')!,
-  upgrade: document.querySelector<HTMLElement>('.upgrade')!,
-  upgradeButton: document.querySelector<HTMLButtonElement>('[data-upgrade]')!,
-  upgradeNote: document.querySelector<HTMLElement>('[data-upgrade-note]')!,
+  actions: document.querySelector<HTMLElement>('.actions')!,
+  actionRing: document.querySelector<HTMLElement>('[data-actions-ring]')!,
+  actionNote: document.querySelector<HTMLElement>('[data-actions-note]')!,
   pause: document.querySelector<HTMLElement>('.pause')!,
   cutWire: document.querySelector<HTMLButtonElement>('[data-cut-wire]')!,
 };
@@ -164,7 +166,7 @@ hud.cutWire.addEventListener('click', () => {
 let paused = false;
 
 function covered(): boolean {
-  return dialog.open || resumeDialog.open;
+  return dialog.open || resumeDialog.open || shareDialog.open;
 }
 
 function updateRunning(): void {
@@ -230,18 +232,124 @@ window.addEventListener('keydown', (event) => {
   setPaused(!paused);
 });
 
-hud.upgradeButton.addEventListener('click', () => {
-  const selected = controls.selected;
-  if (selected === null) return;
-  upgradeNode(match.state, HUMAN, selected);
-  paintUpgradeControl();
-  app.render();
-});
-
 const dialog = document.querySelector<HTMLDialogElement>('.setup')!;
 const setupForm = dialog.querySelector('form')!;
 const resumeDialog = document.querySelector<HTMLDialogElement>('.resume')!;
 const resumeSummary = resumeDialog.querySelector<HTMLElement>('[data-resume-summary]')!;
+
+/*
+ * The balancer's own panel.
+ *
+ * A hub has two things worth setting and neither belongs on a button: how it
+ * shares out, and which of its wires are still wanted. It is a real dialog,
+ * so it stops the clock the way the other two do — nobody should have to
+ * decide anything while the board moves underneath them.
+ */
+const shareDialog = document.querySelector<HTMLDialogElement>('.share')!;
+const shareModes = shareDialog.querySelector<HTMLElement>('[data-choices="share"]')!;
+const shareHint = shareDialog.querySelector<HTMLElement>('[data-share-hint]')!;
+const shareOutputs = shareDialog.querySelector<HTMLElement>('[data-share-outputs]')!;
+
+/** The hub the panel is open on, or null when it is shut. */
+let sharing: number | null = null;
+
+function openShare(nodeId: number): void {
+  const node = match.state.nodes[nodeId];
+  if (!node || node.kind !== 'balancer') return;
+
+  sharing = nodeId;
+  buildChoices(shareDialog, 'share', SHARE_MODES, node.share ?? 'round');
+  paintShare();
+  shareDialog.showModal();
+  updateRunning();
+}
+
+shareModes.addEventListener('change', () => {
+  const node = sharing === null ? undefined : match.state.nodes[sharing];
+  if (!node) return;
+
+  node.share = (readChoice(shareDialog, 'share') || 'round') as ShareMode;
+  // Starting over rather than carrying on from wherever the other mode left
+  // the cursor: a list the player has just changed should begin at its top.
+  node.cursor = 0;
+  paintShare();
+});
+
+shareDialog.addEventListener('close', () => {
+  sharing = null;
+  updateRunning();
+  renderer.draw(match.state, match.alpha, STEP_SECONDS, controls.hint);
+  app.render();
+});
+
+/** Fills in the panel from the hub it is open on. */
+function paintShare(): void {
+  const node = sharing === null ? undefined : match.state.nodes[sharing];
+  if (!node) return;
+
+  shareHint.textContent = SHARE_MODES[node.share ?? 'round'].hint;
+  shareOutputs.replaceChildren();
+
+  const outputs = wiresFrom(match.state, node.id);
+  if (outputs.length === 0) {
+    const empty = document.createElement('p');
+    empty.textContent = touchPlayer
+      ? 'Проводов нет. Включите «Провод» внизу и проведите к своему соседу.'
+      : 'Проводов нет. Протяните правой кнопкой к своему соседу.';
+    shareOutputs.appendChild(empty);
+    return;
+  }
+
+  for (const toId of outputs) {
+    const target = match.state.nodes[toId];
+    if (!target) continue;
+
+    const row = document.createElement('li');
+
+    const name = document.createElement('span');
+    name.textContent = `На ${bearingName(node, target)}`;
+
+    const state = document.createElement('em');
+    state.textContent = `${formatPoints(target.points)} / ${target.capacity}`;
+
+    const cut = document.createElement('button');
+    cut.type = 'button';
+    cut.textContent = '×';
+    cut.title = 'Убрать этот провод';
+    cut.setAttribute('aria-label', 'Убрать этот провод');
+    cut.addEventListener('click', () => {
+      cutWire(match.state, HUMAN, node.id, toId);
+      paintShare();
+    });
+
+    row.append(name, state, cut);
+    shareOutputs.appendChild(row);
+  }
+}
+
+/**
+ * Which way an output lies from the hub, in words.
+ *
+ * Nodes have no names, and their ids mean nothing to a player. A direction is
+ * the one label that can be matched against the board without being told.
+ */
+const BEARINGS = [
+  'восток',
+  'юго-восток',
+  'юг',
+  'юго-запад',
+  'запад',
+  'северо-запад',
+  'север',
+  'северо-восток',
+] as const;
+
+function bearingName(from: GameNode, to: GameNode): string {
+  // Screen coordinates, so a positive y is south rather than north.
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const eighth = Math.round((angle / (Math.PI * 2)) * 8 + 8) % 8;
+  return BEARINGS[eighth]!;
+}
 
 let settings: MatchSettings = {
   ...defaultSettings(),
@@ -545,13 +653,13 @@ function showMatch(next: Match): void {
  */
 function paintOverlays(): void {
   if (covering()) {
-    hud.upgrade.hidden = true;
+    hud.actions.hidden = true;
     hud.cutWire.hidden = true;
     zoomRail.hidden = true;
     return;
   }
 
-  paintUpgradeControl();
+  paintActions();
   paintWireControl();
   paintZoom();
 }
@@ -593,40 +701,230 @@ function cssColour(value: number): string {
 }
 
 /**
- * Parks the upgrade control beside the selected node.
+ * One thing the selected node can be asked to do.
  *
- * It is DOM rather than something drawn into the canvas so that it is a real
- * button: hover, keyboard focus and a proper hit area come for free.
+ * The ring is built from a list rather than from a fixed set of buttons,
+ * because what a node offers depends on what it is: a plain node can be built
+ * up and, at the top, built into something; a hub can be set up and taken
+ * back down again.
  */
-function paintUpgradeControl(): void {
+interface NodeAction {
+  /** What goes inside the button: a character, or a mark that is drawn. */
+  mark: string | (() => SVGElement);
+  /** What the button is for, read out by a screen reader and on hover. */
+  title: string;
+  disabled?: boolean;
+  run(): void;
+}
+
+/**
+ * The silhouette on the button that builds a node into a kind.
+ *
+ * The same fan the node itself will wear once it is built, so the button
+ * teaches the mark rather than standing in for it. A new buildable kind needs
+ * a mark here and a silhouette in the renderer — a kind is a row in a table,
+ * but a picture of one is a picture.
+ */
+const CONVERSION_MARKS: Partial<Record<NodeKind, () => SVGElement>> = {
+  balancer: fanMark,
+};
+
+function fanMark(): SVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+
+  for (const [x, y] of [
+    [5, 5],
+    [12, 3],
+    [19, 5],
+  ]) {
+    const ray = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    ray.setAttribute('d', `M12 20 L${x} ${y}`);
+    svg.appendChild(ray);
+  }
+
+  return svg;
+}
+
+/**
+ * Lays the ring of actions around the selected node.
+ *
+ * It is DOM rather than something drawn into the canvas so that the buttons
+ * are real buttons: hover, keyboard focus and a proper hit area come free.
+ * The block sits on the node's centre and the buttons are placed on an arc
+ * around it, so the ring follows the node through a pan or a zoom.
+ */
+function paintActions(): void {
   const selected = controls.selected;
   const node = selected === null ? undefined : match.state.nodes[selected];
 
   if (!node || node.owner !== HUMAN) {
-    hud.upgrade.hidden = true;
+    hud.actions.hidden = true;
     if (node && node.owner !== HUMAN) controls.clearSelection();
     return;
   }
 
-  const anchor = renderer.anchorFor(node);
-  hud.upgrade.hidden = false;
-  hud.upgrade.style.left = `${anchor.x}px`;
-  hud.upgrade.style.top = `${anchor.y}px`;
+  const at = renderer.ringFor(node);
+  hud.actions.hidden = false;
+  hud.actions.style.left = `${at.x}px`;
+  hud.actions.style.top = `${at.y}px`;
 
-  const cost = upgradeCost(node.level);
-  if (cost === null) {
-    hud.upgradeButton.disabled = true;
-    hud.upgradeNote.textContent = `Уровень ${MAX_LEVEL} — дальше некуда`;
-    return;
+  layOutRing(node.id, actionsFor(node), at.radius);
+  hud.actionNote.textContent = noteFor(node);
+  hud.actionNote.style.transform = `translate(-50%, ${at.radius + NOTE_GAP}px)`;
+}
+
+/** How far outside the node the buttons and the note sit, in screen pixels. */
+const RING_GAP = 12;
+const NOTE_GAP = 26;
+
+/**
+ * Places the buttons on an arc to the right of the node.
+ *
+ * The step between them is measured in pixels along that arc rather than in
+ * degrees, so two buttons on a small node do not overlap and four on a big
+ * one do not drift halfway round the board.
+ *
+ * The buttons are rebuilt only when the ring's make-up changes, never on the
+ * frame. This runs sixty times a second: replacing the DOM each time would
+ * throw away the focus ring and cancel the press the player is in the middle
+ * of. What does change every frame — where each button sits, and whether it
+ * can be afforded — is written to the elements that are already there.
+ */
+function layOutRing(nodeId: number, actions: NodeAction[], nodeRadius: number): void {
+  ringActions = actions;
+
+  const size = buttonSize();
+  const radius = nodeRadius + size / 2 + RING_GAP;
+  const step = Math.min(MAX_ARC_STEP, (size + 6) / radius);
+  const signature = [nodeId, ...actions.map((action) => action.title)].join('|');
+
+  if (signature !== ringSignature) {
+    ringSignature = signature;
+    hud.actionRing.replaceChildren();
+
+    actions.forEach((action, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.title = action.title;
+      button.setAttribute('aria-label', action.title);
+
+      if (typeof action.mark === 'string') button.textContent = action.mark;
+      else button.appendChild(action.mark());
+
+      // Through the list rather than through this action, so the handler
+      // survives every frame that does not rebuild the ring.
+      button.addEventListener('click', () => {
+        ringActions[index]?.run();
+        paintOverlays();
+        renderer.draw(match.state, match.alpha, STEP_SECONDS, controls.hint);
+        app.render();
+      });
+
+      hud.actionRing.appendChild(button);
+    });
   }
 
-  const short = Math.ceil(cost - node.points);
-  hud.upgradeButton.disabled = short > 0;
-  const step = `Уровень ${node.level} → ${node.level + 1}`;
-  const price = short > 0 ? `не хватает ${formatPoints(short)}` : `за ${cost}`;
-  hud.upgradeNote.textContent = [step, price, bonusGained(node)]
-    .filter(Boolean)
-    .join(', ');
+  actions.forEach((action, index) => {
+    const button = hud.actionRing.children[index] as HTMLButtonElement | undefined;
+    if (!button) return;
+
+    button.disabled = action.disabled ?? false;
+    // Written as custom properties rather than as a transform, so the
+    // stylesheet can add the press to the placement instead of replacing it.
+    const angle = (index - (actions.length - 1) / 2) * step;
+    button.style.setProperty('--x', `${Math.cos(angle) * radius}px`);
+    button.style.setProperty('--y', `${Math.sin(angle) * radius}px`);
+  });
+}
+
+/** What the buttons on screen stand for, refreshed every frame. */
+let ringActions: NodeAction[] = [];
+/** The make-up of the ring as built, so it is rebuilt only when it changes. */
+let ringSignature = '';
+
+/** Widest the arc may open between two neighbouring buttons, in radians. */
+const MAX_ARC_STEP = 0.85;
+
+function buttonSize(): number {
+  return touchPlayer ? 42 : 30;
+}
+
+/** What this node can be asked to do, in the order the ring shows it. */
+function actionsFor(node: GameNode): NodeAction[] {
+  const actions: NodeAction[] = [];
+  const cost = upgradeCost(node.level);
+
+  if (cost !== null) {
+    actions.push({
+      mark: '+',
+      title: `Поднять уровень, ${cost}`,
+      disabled: node.points < cost,
+      run: () => void upgradeNode(match.state, HUMAN, node.id),
+    });
+  }
+
+  for (const kind of conversionsFor(match.state, node.id)) {
+    const conversion = CONVERSIONS[kind]!;
+    actions.push({
+      mark: CONVERSION_MARKS[kind] ?? '•',
+      title: `${conversion.label}, ${conversion.cost}`,
+      disabled: node.points < conversion.cost,
+      run: () => void convertNode(match.state, HUMAN, node.id, kind),
+    });
+  }
+
+  if (node.kind === 'balancer') {
+    actions.push({
+      mark: '⚙',
+      title: 'Настроить раздачу',
+      run: () => openShare(node.id),
+    });
+  }
+
+  if (CONVERSIONS[node.kind]) {
+    actions.push({
+      mark: '↺',
+      title: 'Вернуть обычный узел',
+      run: () => void revertNode(match.state, HUMAN, node.id),
+    });
+  }
+
+  return actions;
+}
+
+/**
+ * The line under the ring: what this node is, or what the next level costs.
+ *
+ * A hub has no next level and no price to quote, so it says what it is doing
+ * instead — which is the one thing about it that is not visible on the board.
+ */
+function noteFor(node: GameNode): string {
+  if (node.kind === 'balancer') {
+    const outputs = wiresFrom(match.state, node.id).length;
+    const mode = SHARE_MODES[node.share ?? 'round'].label.toLowerCase();
+    return outputs === 0 ? 'Раздавать некуда: нет проводов' : `${mode}, выходов ${outputs}`;
+  }
+
+  const cost = upgradeCost(node.level);
+  if (cost !== null) {
+    const short = Math.ceil(cost - node.points);
+    const step = `Уровень ${node.level} → ${node.level + 1}`;
+    const price = short > 0 ? `не хватает ${formatPoints(short)}` : `за ${cost}`;
+    return [step, price, bonusGained(node)].filter(Boolean).join(', ');
+  }
+
+  const buildable = conversionsFor(match.state, node.id)[0];
+  if (buildable) {
+    const conversion = CONVERSIONS[buildable]!;
+    const short = Math.ceil(conversion.cost - node.points);
+    return short > 0
+      ? `${conversion.label}: не хватает ${formatPoints(short)}`
+      : `${conversion.label} за ${conversion.cost}`;
+  }
+
+  return `Уровень ${MAX_LEVEL} — дальше некуда`;
 }
 
 /**

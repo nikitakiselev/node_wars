@@ -201,6 +201,18 @@ export class GameRenderer {
     return { x: edge.x + 14, y: edge.y };
   }
 
+  /**
+   * Where a node sits on screen and how big it is there.
+   *
+   * The ring of actions is laid out around the node rather than beside it, so
+   * it needs the drawn radius and not just a point — and the drawn radius
+   * moves with both the zoom and the node's own level.
+   */
+  ringFor(node: GameNode): { x: number; y: number; radius: number } {
+    const at = this.toScreen(node.x, node.y);
+    return { x: at.x, y: at.y, radius: node.radius * this.camera.zoom };
+  }
+
   /** Rebuilds every persistent display object for a freshly generated map. */
   build(state: GameState): void {
     this.edgeLayer.clear();

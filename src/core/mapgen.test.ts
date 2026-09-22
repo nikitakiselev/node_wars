@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { NEUTRAL, type GameState } from './state';
+import { CONVERSIONS } from './convert';
 import { isConnected } from './graph';
 import { START_POINTS, generateMap, neighbourhoodCapacity } from './mapgen';
 import { MAX_PLAYERS, factionOf } from '../render/theme';
@@ -529,6 +530,25 @@ describe('islands', () => {
       expect(state.islands[starts[0]!.id], `seed ${seed}`).not.toBe(
         state.islands[starts[1]!.id],
       );
+    }
+  });
+});
+
+describe('what the generator deals and what the player builds', () => {
+  test('no buildable kind is ever dealt: the map lays out terrain only', () => {
+    const buildable = Object.keys(CONVERSIONS);
+    expect(buildable.length).toBeGreaterThan(0);
+
+    for (let seed = 500; seed < 510; seed++) {
+      for (const node of map(seed).nodes) {
+        expect(buildable, `seed ${seed}`).not.toContain(node.kind);
+      }
+    }
+  });
+
+  test('nothing on a fresh board is wired to anything', () => {
+    for (const wires of map(501).wires) {
+      expect(wires).toEqual([]);
     }
   });
 });

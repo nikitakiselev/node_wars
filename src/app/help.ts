@@ -1,3 +1,4 @@
+import { BALANCER_COST, MIN_BALANCER_NEIGHBOURS } from '../core/convert';
 import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { MAX_LEVEL, capacityForLevel, upgradeCost } from '../core/levels';
 
@@ -70,6 +71,8 @@ export function helpSections(controls: Controls = 'mouse'): HelpSection[] {
       lines: [
         'Обычный узел от уровня получает только объём, остальные — ещё и своё умение.',
         'Ядро на карте одно, посередине. Пока оно ваше, быстрее растёт вся ваша сеть.',
+        `Узел ${MAX_LEVEL} уровня с ${MIN_BALANCER_NEIGHBOURS} своими соседями строится в балансировщик за ${BALANCER_COST}.`,
+        'Балансировщик не зарабатывает и не копит: пришедшее сразу уходит по его проводам.',
       ],
       table: {
         head: ['', ...LEVELS.map(String)],
@@ -97,8 +100,8 @@ export function helpSections(controls: Controls = 'mouse'): HelpSection[] {
           : 'Правой кнопкой протяните от своего узла к своему же соседу.',
         'Наполнившись, узел отправит дальше половину, а половину оставит себе.',
         touch
-          ? 'Провод из узла один. Чтобы убрать — коснитесь узла в режиме «Провод».'
-          : 'Провод из узла один. Наведите на него мышь и нажмите ×, чтобы убрать.',
+          ? 'Из узла один провод, из балансировщика — к каждому соседу. Убрать: тем же режимом.'
+          : 'Из узла один провод, из балансировщика — к каждому соседу. Убрать: навести и ×.',
         'Атаковать провод не умеет — куда бить, решаете вы.',
       ],
     },

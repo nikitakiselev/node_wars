@@ -115,10 +115,35 @@
       ×
     </button>
 
-    <div class="upgrade" hidden>
-      <button type="button" data-upgrade aria-label="Поднять уровень узла">+</button>
-      <span class="upgrade__note" data-upgrade-note></span>
+    <div class="actions" hidden>
+      <div class="actions__ring" data-actions-ring></div>
+      <span class="actions__note" data-actions-note></span>
     </div>
+
+    <dialog class="share">
+      <form method="dialog">
+        <h1>Балансировщик</h1>
+        <p class="share__lead">
+          Узел ничего не зарабатывает и ничего не хранит: всё пришедшее уходит
+          дальше по проводам.
+        </p>
+
+        <fieldset>
+          <legend>Как раздавать</legend>
+          <div class="choices" data-choices="share"></div>
+          <p class="share__hint" data-share-hint></p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Выходы</legend>
+          <ul class="share__outputs" data-share-outputs></ul>
+        </fieldset>
+
+        <menu>
+          <button type="submit" value="close">Готово</button>
+        </menu>
+      </form>
+    </dialog>
 
     <div class="verdict" hidden>
       <p data-verdict></p>

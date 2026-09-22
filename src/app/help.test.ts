@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { BALANCER_COST, MIN_BALANCER_NEIGHBOURS } from '../core/convert';
 import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { MAX_LEVEL, capacityForLevel, upgradeCost } from '../core/levels';
 import { helpSections } from './help';
@@ -73,6 +74,13 @@ describe('the rules panel', () => {
       expect(farm[level]).toBe(`${growthMultiplier({ kind: 'farm', level })}×`);
       expect(core[level]).toBe(`${auraMultiplier({ kind: 'core', level })}×`);
     }
+  });
+
+  test('quotes what a balancer costs from the table that charges for it', () => {
+    const everything = sections.flatMap((s) => s.lines).join(' ');
+
+    expect(everything).toContain(String(BALANCER_COST));
+    expect(everything).toContain(String(MIN_BALANCER_NEIGHBOURS));
   });
 
   test('tells the player which key sends what', () => {

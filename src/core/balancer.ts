@@ -1,5 +1,5 @@
 import { sendSquad } from './orders';
-import { NEUTRAL, type GameNode, type GameState } from './state';
+import { NEUTRAL, type GameNode, type GameState, type ShareMode } from './state';
 
 /**
  * The balancer: a node that produces nothing and stores nothing.
@@ -11,6 +11,24 @@ import { NEUTRAL, type GameNode, type GameState } from './state';
  *
  * It is built, not dealt: `convert.ts` is what turns a node into one.
  */
+
+/**
+ * The ways a balancer can share out, in the order they are offered.
+ *
+ * Data rather than a switch in the dialog, for the same reason the send modes
+ * and the difficulties are: the panel that offers them reads this, so a third
+ * way to share is a row here and nothing else.
+ */
+export const SHARE_MODES = {
+  round: {
+    label: 'По кругу',
+    hint: 'Каждая следующая посылка — следующему выходу по списку.',
+  },
+  balance: {
+    label: 'Поровну',
+    hint: 'Посылка уходит тому, кто сильнее всех просел против своего потолка.',
+  },
+} as const satisfies Record<ShareMode, { label: string; hint: string }>;
 
 /**
  * Empties every balancer on the board into its outputs.
