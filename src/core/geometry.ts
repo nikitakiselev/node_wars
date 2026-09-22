@@ -53,6 +53,11 @@ export interface WireRef {
 }
 
 export function wireAtPoint(state: GameState, x: number, y: number): WireRef | null {
+  // A node the cursor is actually on always wins. A wire runs centre to
+  // centre, so its line passes under both of its nodes, and resting on a node
+  // would otherwise bring up the × for a wire nobody was pointing at.
+  if (nodeAtPoint(state, x, y)) return null;
+
   let best: WireRef | null = null;
   let bestDistance = WIRE_GRAB;
 
@@ -61,7 +66,10 @@ export function wireAtPoint(state: GameState, x: number, y: number): WireRef | n
       const target = state.nodes[toId];
       if (!target) continue;
 
-      const distance = distanceToSegment(x, y, source.x, source.y, target.x, target.y);
+      const drawn = between(source, target);
+      if (!drawn) continue;
+
+      const distance = distanceToSegment(x, y, drawn.ax, drawn.ay, drawn.bx, drawn.by);
       if (distance < bestDistance) {
         bestDistance = distance;
         best = { from: fromId, to: toId };
@@ -70,6 +78,34 @@ export function wireAtPoint(state: GameState, x: number, y: number): WireRef | n
   });
 
   return best;
+}
+
+/**
+ * The stretch of a wire that is actually drawn: between the two circles,
+ * never across them.
+ *
+ * The renderer starts its dashes clear of both nodes, and what can be grabbed
+ * has to be what can be seen. Measuring the whole centre-to-centre line
+ * instead put a wire's hit area inside its own nodes.
+ */
+function between(source: GameNode, target: GameNode) {
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const length = Math.hypot(dx, dy);
+
+  const start = source.radius;
+  const finish = length - target.radius;
+  // Nodes closer together than their own radii have no wire to show.
+  if (finish <= start) return null;
+
+  const ux = dx / length;
+  const uy = dy / length;
+  return {
+    ax: source.x + ux * start,
+    ay: source.y + uy * start,
+    bx: source.x + ux * finish,
+    by: source.y + uy * finish,
+  };
 }
 
 /** Halfway along a wire, where its controls sit. */

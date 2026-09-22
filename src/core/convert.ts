@@ -1,4 +1,7 @@
+import { DEFAULT_SHARE } from './balancer';
+import { devMode } from './dev';
 import { MAX_LEVEL } from './levels';
+import { wireLimitOf } from './wires';
 import { NEUTRAL, type GameNode, type GameState, type NodeKind, type OwnerId } from './state';
 
 /**
@@ -18,8 +21,24 @@ import { NEUTRAL, type GameNode, type GameState, type NodeKind, type OwnerId } f
 export interface Conversion {
   /** Points taken off the node's own garrison to build it. */
   cost: number;
-  /** What the button offering it says. */
+  /** What this kind is called, for a sentence about it. */
   label: string;
+  /**
+   * What the button offering it says when asked.
+   *
+   * Written out rather than built from the label, because Russian declines:
+   * "в балансировщик" and "в батарею" cannot both be had by pasting a word
+   * onto "Преобразовать". A row in this table carries its own grammar.
+   */
+  action: string;
+  /**
+   * What a node still lacks, in a few words.
+   *
+   * Next to the rule rather than in the panel that shows it: a condition and
+   * the sentence explaining it are one thing, and the sentence going stale is
+   * exactly what happens when they live apart.
+   */
+  needs: string;
   /** Whether this particular node, right now, may be built into it. */
   allowed(node: GameNode, state: GameState): boolean;
 }
@@ -45,6 +64,8 @@ export const CONVERSIONS: Partial<Record<NodeKind, Conversion>> = {
   balancer: {
     cost: BALANCER_COST,
     label: 'Балансировщик',
+    action: 'Преобразовать в балансировщик',
+    needs: `перекрёсток из ${MIN_BALANCER_NEIGHBOURS} своих узлов`,
     allowed(node, state) {
       if (node.kind !== 'base' || node.level < MAX_LEVEL) return false;
       return ownNeighbours(state, node) >= MIN_BALANCER_NEIGHBOURS;
@@ -58,6 +79,18 @@ function ownNeighbours(state: GameState, node: GameNode): number {
     if (state.nodes[id]?.owner === node.owner) own++;
   }
   return own;
+}
+
+/**
+ * What building this kind costs right now.
+ *
+ * The one place the price is read, so the developer switch has one place to
+ * change it — and so the button, the bots, the rules panel and the rule that
+ * charges can never quote different numbers at each other.
+ */
+export function costOf(kind: NodeKind): number {
+  if (devMode()) return 0;
+  return CONVERSIONS[kind]?.cost ?? 0;
 }
 
 /**
@@ -80,37 +113,67 @@ export function convertNode(
 
   const conversion = CONVERSIONS[kind];
   if (!conversion || !conversion.allowed(node, state)) return false;
-  if (node.points < conversion.cost) return false;
 
-  node.points -= conversion.cost;
+  const cost = costOf(kind);
+  if (node.points < cost) return false;
+
+  node.points -= cost;
   node.kind = kind;
-  // Round the list is the readable default; a player who wants the other one
-  // is a player who has opened the settings and knows what it does.
-  if (kind === 'balancer') node.share = 'round';
+  // Levelling from the start: a hub is built to even things out, and the one
+  // mode that does that without being asked is the one it should arrive on.
+  // Round robin is the choice you make after seeing what the default does.
+  if (kind === 'balancer') node.share = DEFAULT_SHARE;
   return true;
 }
 
 /**
- * Takes a built node back to a plain one, for nothing.
+ * Strips a node back to a plain one, for nothing.
  *
- * Only kinds somebody built can be taken back. A fortress or a farm is
- * terrain: it was there before the player was, and demoting it would be
- * rewriting the map rather than undoing a decision.
+ * Any kind, not only the ones somebody built. Terrain was the earlier rule —
+ * a fortress was there before the player was, and demoting it read as
+ * rewriting the map — but it made a crossroads that happened to be dealt as a
+ * fortress the one crossroads on the board that could never be built into
+ * anything. Clearing ground you already hold is a decision the player is
+ * allowed to make.
  */
 export function revertNode(state: GameState, actor: OwnerId, nodeId: number): boolean {
   if (actor === NEUTRAL) return false;
 
   const node = state.nodes[nodeId];
-  if (!node || node.owner !== actor) return false;
-  if (!CONVERSIONS[node.kind]) return false;
+  if (!node || node.owner !== actor || node.kind === 'base') return false;
 
   node.kind = 'base';
   delete node.share;
   delete node.cursor;
-  // A plain node is allowed one wire and this one may have had five; rather
-  // than pick a survivor, it lets go of all of them.
-  state.wires[nodeId] = [];
+  // A hub may have had five wires where a plain node is allowed one. Trimmed
+  // from the oldest, the rule laying one past the limit already follows,
+  // rather than dropping the lot: a farm with a wire should not lose it
+  // because its rays came down.
+  const wires = state.wires[nodeId] ?? [];
+  state.wires[nodeId] = wires.slice(-wireLimitOf(state, nodeId));
   return true;
+}
+
+/**
+ * Why this node is offered nothing, or null when it is offered something.
+ *
+ * A node at the top of its levels with no crossroads under it has no action
+ * at all, and a ring with nothing in it is a selection that appears to do
+ * nothing. It says what the node would have to be instead.
+ */
+export function missingFor(state: GameState, nodeId: number): string | null {
+  const node = state.nodes[nodeId];
+  if (!node || conversionsFor(state, nodeId).length > 0) return null;
+
+  for (const kind of Object.keys(CONVERSIONS) as NodeKind[]) {
+    const conversion = CONVERSIONS[kind]!;
+    // Only worth explaining where the node is otherwise ready: a first-level
+    // node is not being refused a balancer, it simply has building to do.
+    if (node.kind !== 'base' || node.level < MAX_LEVEL) continue;
+    return `${conversion.label}: нужен ${conversion.needs}`;
+  }
+
+  return null;
 }
 
 /** The kinds this node could be built into right now, for the ring of actions. */

@@ -89,6 +89,21 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/*
+ * Selected text, in the board's own colours.
+ *
+ * Little on this page can be selected at all — the board is dragged, not
+ * highlighted — but the rules panel and the setup dialog are real text, and
+ * a system highlight is a slab of somebody else's blue over dark teal. Jade
+ * at a third is the same light the interface already uses, so a selection
+ * reads as part of the page rather than as the operating system showing
+ * through it.
+ */
+::selection {
+  background: rgba(63, 214, 193, 0.3);
+  color: var(--foam);
+}
+
 button,
 .choice span {
   /* No double-tap-to-zoom delay on anything the player presses. */
@@ -172,55 +187,6 @@ button,
   border-radius: 50%;
   background: var(--seat);
   vertical-align: 1px;
-}
-
-.controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.controls span {
-  margin-right: 4px;
-  color: #6f868c;
-}
-
-.controls button {
-  border: 1px solid #1a4049;
-  border-radius: 999px;
-  padding: 5px 13px;
-  background: rgba(7, 26, 32, 0.7);
-  color: #9fb4b8;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    color 120ms,
-    border-color 120ms;
-}
-
-@media (hover: hover) {
-  .controls button:hover {
-    color: var(--foam);
-    border-color: #2b6b78;
-  }
-}
-
-.controls button:focus-visible {
-  color: var(--foam);
-  border-color: #2b6b78;
-}
-
-.controls button.is-chosen {
-  color: var(--water-deep);
-  background: var(--foam);
-  border-color: var(--foam);
-}
-
-.controls button:focus-visible {
-  outline: 2px solid var(--jade);
-  outline-offset: 2px;
 }
 
 .footer {
@@ -320,9 +286,28 @@ button,
   gap: 12px;
 }
 
-/* One row: what a drag means, and the way into everything else. */
-.bar {
+/*
+ * The top of the screen: the way in on the left, the standings beside it.
+ *
+ * A row rather than a stack, because the menu button is the one thing on this
+ * screen that is neither the board nor a reading of it, and a corner nothing
+ * else wants is the cheapest place to put it.
+ */
+[data-hud-top] {
   display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.scores {
+  flex: 1;
+  min-width: 0;
+}
+
+/* One row: what a drag means. A desktop has modifier keys instead, so the
+   row holds nothing there and is not kept as an empty gap. */
+.bar {
+  display: none;
   justify-content: center;
   align-items: center;
   gap: 6px;
@@ -343,7 +328,7 @@ button,
  * width of a thumb rather than the width of a label.
  */
 .menu {
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 46px;
@@ -429,10 +414,6 @@ button,
   bottom: 0;
 }
 
-.controls [data-pause] {
-  display: none;
-}
-
 /*
  * The touch layout, switched on by main.ts rather than by a media query.
  *
@@ -440,12 +421,9 @@ button,
  * it — a desktop browser never reports a coarse pointer, and the phone layout
  * would otherwise be unlookable-at without a phone.
  */
+:root.touch .bar,
 :root.touch .modes {
   display: flex;
-}
-
-:root.touch .menu {
-  display: inline-flex;
 }
 
 /* Everything it held is either hidden here or has moved into the menu. */
@@ -469,29 +447,6 @@ button,
   flex-direction: row;
   align-items: center;
   justify-content: center;
-}
-
-:root.touch .controls [data-pause] {
-  display: inline-block;
-}
-
-/*
- * One button in the footer, and the rest behind it.
- *
- * A phone gives up a strip to the home indicator before anything else is
- * drawn, so the bottom of the screen is the most expensive place there is.
- * Rules, a new match and the seed are all things you reach for between moves,
- * never during one, and the pause menu is already where they live.
- */
-:root.touch .controls [data-seed],
-:root.touch .controls [data-help],
-:root.touch .controls [data-open-settings] {
-  display: none;
-}
-
-:root.touch .controls button {
-  padding: 10px 22px;
-  font-size: 14px;
 }
 
 :root.touch .bottom {
@@ -544,39 +499,6 @@ button,
    underneath the very thing that exists to sit behind it. */
 :root.touch [data-hud-top] {
   position: relative;
-}
-
-/*
- * One column, one width.
- *
- * A primary button on its own line above a row of three reads as two separate
- * things; a thumb wants one list it can run down. The width is shared so the
- * edges line up rather than stepping in and out with the length of the word.
- */
-:root.touch .pause {
-  gap: 12px;
-}
-
-:root.touch .pause button {
-  width: min(300px, 74vw);
-  padding: 14px 20px;
-  font-size: 16px;
-}
-
-:root.touch .pause__more {
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-/*
- * In a column, four identical pills are a wall: nothing says which one gets
- * you back to the game. Only continuing is filled in.
- */
-:root.touch .pause .pause__rules {
-  border-color: #2b6b78;
-  background: transparent;
-  color: #9fb4b8;
 }
 
 /* Both of these are aimed at with a fingertip rather than a cursor. */
@@ -739,7 +661,10 @@ button,
     transition: none;
   }
 
-  .actions button {
+  .actions button,
+  .pause p,
+  .pause button,
+  .pause [data-seed] {
     animation: none;
   }
 
@@ -837,21 +762,38 @@ button,
   outline-offset: 3px;
 }
 
+/*
+ * One column, one width.
+ *
+ * A primary button on its own line above a row of three reads as two separate
+ * things; one list you can run down reads as one menu. The width is shared so
+ * the edges line up rather than stepping in and out with the length of a word.
+ */
 .pause__more {
   display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 10px;
 }
 
-.pause__rules {
-  border: 1px solid #2b6b78;
-  border-radius: 999px;
-  padding: 7px 18px;
+/*
+ * In a column, four identical pills are a wall: nothing says which one gets
+ * you back to the game. Only continuing is filled in.
+ *
+ * Written against `.pause` rather than on its own, because `.pause button` is
+ * a class and an element and would otherwise outweigh it — which is exactly
+ * how the desktop came to show four filled pills while the phone showed one.
+ *
+ * It carries the look and nothing else. Size belongs to `.pause button`, so
+ * that all four are one shape: outweighing that rule on colour and then
+ * quietly outweighing it on padding too is how three of them ended up
+ * shorter than the one above them.
+ */
+.pause .pause__rules {
+  border-color: #2b6b78;
   background: transparent;
   color: #9fb4b8;
-  font: inherit;
-  font-size: 13px;
   font-weight: 600;
-  cursor: pointer;
 }
 
 .setup__actions {
@@ -887,13 +829,43 @@ button,
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 14px;
+  gap: 12px;
   background: rgba(4, 18, 26, 0.88);
   pointer-events: auto;
 }
 
 .pause[hidden] {
   display: none;
+}
+
+/*
+ * The menu arrives as one wave, heading first and small print last, so the
+ * eye is led down the list in the order the list is meant to be read.
+ */
+.pause p,
+.pause button,
+.pause [data-seed] {
+  animation: pop-in 200ms cubic-bezier(0.2, 0.9, 0.25, 1.25) backwards;
+}
+
+.pause > button {
+  animation-delay: 32ms;
+}
+
+.pause__more button:nth-child(1) {
+  animation-delay: 64ms;
+}
+
+.pause__more button:nth-child(2) {
+  animation-delay: 96ms;
+}
+
+.pause__more button:nth-child(3) {
+  animation-delay: 128ms;
+}
+
+.pause [data-seed] {
+  animation-delay: 160ms;
 }
 
 .pause p {
@@ -904,9 +876,11 @@ button,
 }
 
 .pause button {
+  width: min(300px, 74vw);
   border: 1px solid var(--foam);
   border-radius: 999px;
-  padding: 9px 22px;
+  padding: 14px 20px;
+  font-size: 16px;
   background: var(--foam);
   color: var(--water-deep);
   font: inherit;
@@ -1024,18 +998,20 @@ button,
   line-height: 1;
   cursor: pointer;
   /* Backwards, so a button is already small and clear before its turn comes. */
-  animation: action-pop 200ms cubic-bezier(0.2, 0.9, 0.25, 1.25) backwards;
+  animation: pop-in 200ms cubic-bezier(0.2, 0.9, 0.25, 1.25) backwards;
   animation-delay: calc(var(--i, 0) * 32ms);
 }
 
 /*
- * The ring arriving.
+ * Things arriving.
  *
- * A wave rather than all at once: the order the buttons land in is the order
- * they are read in, and a fifth of a second is long enough to be seen and
- * short enough that the next tap is never waiting on it.
+ * A wave rather than all at once: the order they land in is the order they
+ * are read in, and a fifth of a second is long enough to be seen and short
+ * enough that the next press is never waiting on it. Shared by the ring
+ * around a node and by the pause menu, which are the two places in the game
+ * where something appears over the board and asks to be chosen from.
  */
-@keyframes action-pop {
+@keyframes pop-in {
   from {
     opacity: 0;
     transform: scale(0.5);
@@ -1058,16 +1034,22 @@ button,
   outline-offset: 3px;
 }
 
-@media (hover: hover) {
-  .actions button:not(:disabled):hover {
-    background: #fff;
-  }
+/* Why a node is offering nothing, in place of the ring it has not got. */
+.actions__empty {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(4, 18, 26, 0.85);
+  color: #9fb4b8;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-/* A finger has no hover: being held down is the only answer a tap can get. */
-.actions button:not(:disabled):active {
-  transform: scale(0.9);
-  background: #bcd7dc;
+.actions__empty[hidden] {
+  display: none;
 }
 
 /*
@@ -1083,8 +1065,8 @@ button,
  * not a thing standing between the player and the board.
  *
  * The water is nearly black already, so what this actually dims is the bright
- * things on it — the far nodes and their numbers. That is why the alpha is
- * lower than it looks: half of it would be heavy on the one thing it touches.
+ * things on it — the far nodes and their numbers. Read the alpha as how much
+ * of a distant node's light is taken away, not as a wash over the board.
  */
 .dim {
   position: fixed;
@@ -1093,7 +1075,7 @@ button,
   background: radial-gradient(
     circle at var(--hole-x, 50%) var(--hole-y, 50%),
     transparent var(--hole-r, 0px),
-    rgba(2, 12, 18, 0.45) calc(var(--hole-r, 0px) * 1.9)
+    rgba(2, 12, 18, 0.72) calc(var(--hole-r, 0px) * 1.75)
   );
   opacity: 0;
   transition: opacity 160ms ease-out;
@@ -1112,19 +1094,28 @@ button,
   stroke-linecap: round;
 }
 
+/* A shape rather than an outline: at this size a stroked cog is a smudge. */
+.actions svg.is-solid {
+  fill: currentColor;
+  stroke: none;
+}
+
 /*
  * What an action costs, parked just outside its own button.
  *
- * Along the same spoke as the button, so it can never come to rest over the
- * node or over a neighbouring button however many actions the ring holds. A
- * price is the only part of an action worth the room it takes on the board;
+ * Directly above it, where it reads as that button's price and nothing else.
+ * It can sit there safely because only the first action in the ring ever
+ * costs anything — building up and building into are the same slot, never two
+ * — and the first action is the one at the top of the circle.
+ *
+ * A price is the only part of an action worth the room it takes on the board;
  * everything else it has to say is on the button's own label.
  */
 .actions__price {
   position: absolute;
-  left: 0;
-  top: 0;
-  transform: translate(-50%, -50%) translate(var(--px, 0px), var(--py, 0px));
+  left: 50%;
+  bottom: calc(100% + 5px);
+  transform: translateX(-50%);
   color: #9fb4b8;
   font-size: 12px;
   font-weight: 700;
@@ -1223,6 +1214,27 @@ button,
 }
 
 /*
+ * The developer switch, worn on the edge of the window.
+ *
+ * It changes what the game charges, so a match played under it is not a match
+ * anybody should read as a real one. A line round the glass is the cheapest
+ * honest way to say so: always in view, never in the way, and it takes no
+ * pointer event. Amber because the board has no other amber edge, and faint
+ * because it is a note to whoever is working, not a warning.
+ */
+:root.dev body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  border: 1px solid rgba(245, 169, 78, 0.5);
+  box-shadow:
+    inset 0 0 24px rgba(245, 169, 78, 0.16),
+    inset 0 0 3px rgba(245, 169, 78, 0.3);
+}
+
+/*
  * When the game does not start.
  *
  * A blank board tells the player nothing and tells whoever has to fix it even
@@ -1291,16 +1303,67 @@ button,
 .resume .primary,
 .setup__actions button:not(.primary),
 .choice span,
-.upgrade button,
+.actions button,
 .wire-cut,
 .zoom__thumb,
 .crash__again {
   transition:
     transform 90ms ease,
     filter 90ms ease,
+    box-shadow 140ms ease,
     background-color 120ms,
     border-color 120ms,
     color 120ms;
+}
+
+/*
+ * Hovering, in the same two treatments.
+ *
+ * A filled pill lifts and picks up a halo — brightening white on white says
+ * nothing. An outlined one lights its border and fills faintly, which is the
+ * pressed look one step short of itself. Both grow a little, so that hover
+ * and press are opposite motions and cannot be mistaken for one another.
+ */
+@media (hover: hover) {
+  .pause button:hover,
+  .verdict button:hover,
+  .help .primary:hover,
+  .setup .primary:hover,
+  .resume .primary:hover,
+  .choice input:checked + span:hover,
+  .crash__again:hover {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 4px rgba(230, 242, 240, 0.18);
+  }
+
+  .menu:hover,
+  .pause .pause__rules:hover,
+  .setup__actions button:not(.primary):hover {
+    transform: scale(1.04);
+    border-color: var(--jade);
+    background-color: rgba(230, 242, 240, 0.1);
+    color: var(--foam);
+  }
+
+  /*
+   * The ring gets more than the rest of them.
+   *
+   * These are small, they sit over a board rather than inside a panel, and
+   * they are the one place where the wrong button costs points. Growing this
+   * much would be loud on a dialog and is barely enough here.
+   */
+  .actions button:not(:disabled):hover {
+    transform: scale(1.16);
+    background: #fff;
+    border-color: #fff;
+    box-shadow:
+      0 0 0 5px rgba(230, 242, 240, 0.16),
+      0 6px 16px rgba(2, 12, 18, 0.6);
+  }
+
+  .actions button:not(:disabled):hover + .actions__price {
+    color: var(--foam);
+  }
 }
 
 /* Filled: pressed by going darker. */
@@ -1311,10 +1374,16 @@ button,
 .resume .primary:active,
 .controls button.is-chosen:active,
 .choice input:checked + span:active,
-.upgrade button:not(:disabled):active,
 .crash__again:active {
   transform: scale(0.94);
   filter: brightness(0.86);
+}
+
+/* A finger has no hover: being held down is the only answer a tap can get. */
+.actions button:not(:disabled):active {
+  transform: scale(0.9);
+  background: #bcd7dc;
+  box-shadow: none;
 }
 
 /* Outlined: pressed by filling faintly. */
@@ -1352,7 +1421,7 @@ button,
   .resume .primary,
   .setup__actions button:not(.primary),
   .choice span,
-  .upgrade button,
+  .actions button,
   .wire-cut,
   .zoom__thumb {
     transition: none;

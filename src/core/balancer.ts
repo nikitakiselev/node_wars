@@ -37,10 +37,18 @@ export const SHARE_MODES = {
   },
 } as const satisfies Record<ShareMode, { label: string; hint: string }>;
 
-/** The mode a node is set to, or the plain one if it is set to nothing known. */
+/**
+ * What a hub shares by until it is told otherwise.
+ *
+ * The one mode that evens things out on its own, which is what a hub is built
+ * for. Round robin is a choice made after watching the default work.
+ */
+export const DEFAULT_SHARE: ShareMode = 'adaptive';
+
+/** The mode a node is set to, or the default if it is set to nothing known. */
 export function shareModeOf(node: Pick<GameNode, 'share'>): ShareMode {
   const mode = node.share;
-  return mode !== undefined && mode in SHARE_MODES ? mode : 'round';
+  return mode !== undefined && mode in SHARE_MODES ? mode : DEFAULT_SHARE;
 }
 
 /**
@@ -82,10 +90,11 @@ function liveOutputs(state: GameState, node: GameNode): number[] {
 /**
  * How one parcel is split, as pairs of output and points.
  *
- * Every share is rounded down, so the shares can only ever add up to less
- * than the parcel. Whatever is left over — never more than one point per
- * output — stays on the hub and goes out with the next parcel. A balancer
- * that rounded the other way would be printing points.
+ * The shares add up to the parcel exactly. Rounding each one down on its own
+ * left a point or two behind every time, and the hub shipped that leftover on
+ * the very next step as a second, tiny squad chasing the first — which looked
+ * like the balancer inventing points from somewhere. Nothing is invented and
+ * nothing is stranded: the whole parcel goes out at once.
  */
 function sharesOf(
   state: GameState,
@@ -99,39 +108,78 @@ function sharesOf(
     return [[outputs[at]!, parcel]];
   }
 
-  const weights =
-    shareModeOf(node) === 'adaptive' ? topUps(state, outputs, parcel) : outputs.map(() => 0);
+  const wanted =
+    shareModeOf(node) === 'adaptive'
+      ? levelling(state, outputs, parcel)
+      : outputs.map(() => parcel / outputs.length);
 
-  const spoken = weights.reduce((sum, share) => sum + share, 0);
-  // Whatever the weights did not claim is split evenly. For Broadcast that is
-  // the whole parcel; for Adaptive it is what is left once everybody has been
-  // brought level, which is what keeps them level afterwards.
-  const each = Math.floor((parcel - spoken) / outputs.length);
+  const from = (node.cursor ?? 0) % outputs.length;
+  node.cursor = from + 1;
 
-  return outputs.map((toId, index) => [toId, weights[index]! + each]);
+  const shares = apportion(wanted, parcel, from);
+  return outputs.map((toId, index) => [toId, shares[index]!]);
 }
 
 /**
- * What each output needs to stand as tall as the fullest of them.
+ * What each output would get if points came in fractions.
  *
- * Topping up to the leader rather than sharing the parcel out in proportion
- * to how far behind each one is: proportion overshoots. Two outputs holding
- * 10 and 40 would send the whole parcel to the first, which then passes the
- * second, and the two of them slosh back and forth for the rest of the match.
- * Filling up to the leader and splitting the rest evenly settles instead —
- * they draw level and then rise together.
+ * Bring whoever is behind up to the fullest output, then share whatever is
+ * left over evenly — that is what makes the outputs draw level and then rise
+ * together. A parcel too small to level them is split in proportion to how
+ * far behind each one is, so a trickle still goes where it is needed most.
  *
- * Scaled down when the parcel cannot cover every top-up, so a small parcel is
- * still shared in proportion to how far behind each output is.
+ * Topping up rather than sharing out in proportion to the gap: proportion
+ * overshoots. Two outputs holding 10 and 40 would get the whole parcel sent
+ * to the first, which then passes the second, and the two slosh back and
+ * forth for the rest of the match.
  */
-function topUps(state: GameState, outputs: number[], parcel: number): number[] {
+function levelling(state: GameState, outputs: number[], parcel: number): number[] {
   let leader = 0;
   for (const toId of outputs) leader = Math.max(leader, state.nodes[toId]!.points);
 
   const behind = outputs.map((toId) => leader - state.nodes[toId]!.points);
   const total = behind.reduce((sum, gap) => sum + gap, 0);
-  if (total <= 0) return outputs.map(() => 0);
 
-  const share = Math.min(1, parcel / total);
-  return behind.map((gap) => Math.floor(gap * share));
+  if (total >= parcel) {
+    // Not enough to level them; share it out by how far behind each one is.
+    return total <= 0 ? outputs.map(() => 0) : behind.map((gap) => (parcel * gap) / total);
+  }
+
+  const spare = (parcel - total) / outputs.length;
+  return behind.map((gap) => gap + spare);
+}
+
+/**
+ * Turns fractional shares into whole points that still add up to the parcel.
+ *
+ * Every share is rounded down first, so nothing can be handed out that did
+ * not arrive; the points that rounding shaved off then go, one each, to
+ * whichever shares lost the most to it. That is the largest-remainder rule,
+ * and it is the reason no point is ever left on the hub.
+ *
+ * Ties are broken by walking the list from a moving start rather than always
+ * from the top, so an even split between three outputs does not quietly
+ * favour the first of them for the whole match. `from` is the same cursor
+ * round robin keeps, which is why a node only ever uses one of the two.
+ */
+function apportion(wanted: number[], parcel: number, from: number): number[] {
+  const whole = wanted.map((share) => Math.floor(share));
+  let left = parcel - whole.reduce((sum, share) => sum + share, 0);
+
+  const order = wanted
+    .map((share, index) => ({ index, part: share - Math.floor(share) }))
+    .sort((a, b) => b.part - a.part || turn(a.index, from, wanted.length) - turn(b.index, from, wanted.length));
+
+  for (const next of order) {
+    if (left <= 0) break;
+    whole[next.index]!++;
+    left--;
+  }
+
+  return whole;
+}
+
+/** How far round the list an output sits from where this parcel starts. */
+function turn(index: number, from: number, count: number): number {
+  return (index - from + count) % count;
 }

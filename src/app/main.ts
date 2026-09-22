@@ -1,7 +1,15 @@
 import { Application } from 'pixi.js';
 import type { Difficulty } from '../ai/ai';
 import { SHARE_MODES, shareModeOf } from '../core/balancer';
-import { CONVERSIONS, conversionsFor, convertNode, revertNode } from '../core/convert';
+import {
+  CONVERSIONS,
+  conversionsFor,
+  convertNode,
+  costOf,
+  missingFor,
+  revertNode,
+} from '../core/convert';
+import { setDevMode } from '../core/dev';
 import { formatPoints } from '../core/format';
 import { defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { upgradeCost } from '../core/levels';
@@ -85,6 +93,12 @@ renderer.layout();
 app.renderer.on('resize', fitBoard);
 
 const options = readOptions(window.location.search);
+// Before anything reads a price: the switch changes what `upgradeCost` says,
+// and the first frame is drawn further down this file.
+setDevMode(options.dev);
+// A switch that changes the rules has to be visible while it is on, or a
+// board built for free eventually gets mistaken for a board that was played.
+document.documentElement.classList.toggle('dev', options.dev);
 
 /**
  * Whether the player is pointing with a finger rather than a cursor.
@@ -138,6 +152,9 @@ const hud = {
   verdict: document.querySelector<HTMLElement>('.verdict')!,
   verdictText: document.querySelector<HTMLElement>('[data-verdict]')!,
   dim: document.querySelector<HTMLElement>('[data-dim]')!,
+  menu: document.querySelector<HTMLElement>('.menu')!,
+  actionsEmpty: document.querySelector<HTMLElement>('[data-actions-empty]')!,
+  bar: document.querySelector<HTMLElement>('[data-bar]')!,
   actions: document.querySelector<HTMLElement>('.actions')!,
   actionRing: document.querySelector<HTMLElement>('[data-actions-ring]')!,
   pause: document.querySelector<HTMLElement>('.pause')!,
@@ -155,9 +172,15 @@ const hud = {
  */
 let lastHole: Hole | null = null;
 
-// A phone's footer holds one button, so the seed goes where the rest of the
-// small print already is: the menu behind it.
-if (touchPlayer) hud.pause.appendChild(hud.seed);
+/*
+ * The way into everything else, in the one place each screen has room for.
+ *
+ * Top left on a desktop, where nothing else sits and the eye starts. On a
+ * phone that corner belongs to the standings and the bottom row is already
+ * the bar, so it moves down there next to the mode pills. One button either
+ * way — two would be two things to keep in step for no gain.
+ */
+if (touchPlayer) hud.bar.appendChild(hud.menu);
 
 hud.cutWire.addEventListener('click', () => {
   const wire = controls.hoveredWire;
@@ -177,8 +200,16 @@ hud.cutWire.addEventListener('click', () => {
  */
 let paused = false;
 
+/**
+ * Whether a dialog is standing in for the board rather than over it.
+ *
+ * Setup and resume are: behind them is a board nobody is playing yet. The
+ * balancer's panel is not — it is a setting on a node in a match that is
+ * going on, and stopping the clock to change a setting would make the panel
+ * a way to think in peace, which is not a thing this game gives anybody.
+ */
 function covered(): boolean {
-  return dialog.open || resumeDialog.open || shareDialog.open;
+  return dialog.open || resumeDialog.open;
 }
 
 function updateRunning(): void {
@@ -236,11 +267,29 @@ if (options.autoPause) {
   });
 }
 
+/*
+ * Escape undoes one thing at a time.
+ *
+ * A dialog first, because a dialog handles Escape itself and two owners would
+ * fight over it. Then the selected node, because a ring of buttons standing
+ * over the board is the nearest thing there is to a dialog. Only with nothing
+ * left to put away does it reach the pause — otherwise letting go of a node
+ * costs you the board as well, which is not what the key is for.
+ */
 window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
-  // A dialog handles Escape itself; two owners would fight over it.
-  if (covered() || helpDialog.open) return;
+  if (covered() || helpDialog.open || shareDialog.open) return;
+
   event.preventDefault();
+
+  if (!paused && controls.selected !== null) {
+    controls.clearSelection();
+    paintOverlays();
+    renderer.draw(match.state, match.alpha, STEP_SECONDS, controls.hint);
+    app.render();
+    return;
+  }
+
   setPaused(!paused);
 });
 
@@ -270,6 +319,7 @@ function openShare(nodeId: number): void {
   if (!node || node.kind !== 'balancer') return;
 
   sharing = nodeId;
+  shareSignature = '';
   buildChoices(shareDialog, 'share', SHARE_MODES, shareModeOf(node));
   paintShare();
   shareDialog.showModal();
@@ -295,14 +345,46 @@ shareDialog.addEventListener('close', () => {
 });
 
 /** Fills in the panel from the hub it is open on. */
+/**
+ * Fills in the panel from the hub it is open on.
+ *
+ * The match runs on underneath, so the rows are rebuilt only when the list of
+ * outputs itself changes and their readings are refreshed on every frame. A
+ * panel rebuilt sixty times a second would take the × out from under the
+ * cursor between the press and the release.
+ */
 function paintShare(): void {
   const node = sharing === null ? undefined : match.state.nodes[sharing];
   if (!node) return;
 
   shareHint.textContent = SHARE_MODES[shareModeOf(node)].hint;
-  shareOutputs.replaceChildren();
 
   const outputs = wiresFrom(match.state, node.id);
+  const signature = [node.id, ...outputs].join('|');
+
+  if (signature !== shareSignature) {
+    shareSignature = signature;
+    buildShareRows(node, outputs);
+  }
+
+  for (const toId of outputs) {
+    const target = match.state.nodes[toId];
+    const reading = shareReadings.get(toId);
+    if (target && reading) {
+      reading.textContent = `${formatPoints(target.points)} / ${target.capacity}`;
+    }
+  }
+}
+
+/** The figure on each row, kept so the numbers can move without a rebuild. */
+const shareReadings = new Map<number, HTMLElement>();
+/** Which hub, pointing where, the rows on screen were built for. */
+let shareSignature = '';
+
+function buildShareRows(node: GameNode, outputs: readonly number[]): void {
+  shareOutputs.replaceChildren();
+  shareReadings.clear();
+
   if (outputs.length === 0) {
     const empty = document.createElement('p');
     empty.textContent = touchPlayer
@@ -323,8 +405,8 @@ function paintShare(): void {
     const name = document.createElement('span');
     name.textContent = names.get(toId) ?? '';
 
-    const state = document.createElement('em');
-    state.textContent = `${formatPoints(target.points)} / ${target.capacity}`;
+    const reading = document.createElement('em');
+    shareReadings.set(toId, reading);
 
     const cut = document.createElement('button');
     cut.type = 'button';
@@ -336,7 +418,7 @@ function paintShare(): void {
       paintShare();
     });
 
-    row.append(name, state, cut);
+    row.append(name, reading, cut);
     shareOutputs.appendChild(row);
   }
 }
@@ -620,7 +702,11 @@ function showMatch(next: Match): void {
   renderer.build(match.state);
   renderer.markHome(match.state.nodes.find((node) => node.owner === HUMAN)?.id ?? null);
   buildScoreboard(match.settings.aiCount + 1);
-  hud.seed.textContent = `Карта ${match.settings.seed}`;
+  // The switch changes the rules, so it says so where the small print is
+  // rather than being something you have to remember you turned on.
+  hud.seed.textContent = options.dev
+    ? `Карта ${match.settings.seed} · режим разработчика`
+    : `Карта ${match.settings.seed}`;
   hud.verdict.hidden = verdictFor() === null;
 
   // Drawing the scene is not the same as putting it on the canvas: while the
@@ -654,6 +740,8 @@ function paintOverlays(): void {
   paintActions();
   paintWireControl();
   paintZoom();
+  // The panel stays open over a running match, so its readings move with it.
+  if (shareDialog.open) paintShare();
 }
 
 /** Whether anything is drawn over the board at the moment. */
@@ -733,22 +821,92 @@ const CONVERSION_MARKS: Partial<Record<NodeKind, () => SVGElement>> = {
   balancer: fanMark,
 };
 
-function fanMark(): SVGElement {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+/**
+ * The marks on the ring's buttons, drawn rather than typed.
+ *
+ * A character is centred by its line box, not by its ink, and the ink of a
+ * glyph the game's own font does not carry — a gear, say — comes from
+ * whatever the system falls back to, with its own idea of where the middle
+ * is. Geometry has no such opinion.
+ */
+function svgMark(build: (svg: SVGElement) => void): SVGElement {
+  const svg = document.createElementNS(SVG, 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('aria-hidden', 'true');
-
-  for (const [x, y] of [
-    [5, 5],
-    [12, 3],
-    [19, 5],
-  ]) {
-    const ray = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    ray.setAttribute('d', `M12 20 L${x} ${y}`);
-    svg.appendChild(ray);
-  }
-
+  build(svg);
   return svg;
+}
+
+const SVG = 'http://www.w3.org/2000/svg';
+
+function line(svg: SVGElement, d: string): void {
+  const path = document.createElementNS(SVG, 'path');
+  path.setAttribute('d', d);
+  svg.appendChild(path);
+}
+
+/**
+ * Settings: a cog.
+ *
+ * Teeth around the rim, not rays out of the middle — the first attempt drew
+ * the second and read as a sun. It is a solid shape with a hole in it rather
+ * than an outline, because at seventeen pixels a stroked cog is a grey smudge
+ * and a filled one keeps its corners.
+ */
+function gearMark(): SVGElement {
+  return svgMark((svg) => {
+    svg.classList.add('is-solid');
+
+    const teeth = 8;
+    const step = (Math.PI * 2) / teeth;
+    const at = (angle: number, radius: number) =>
+      `${(12 + Math.cos(angle) * radius).toFixed(2)} ${(12 + Math.sin(angle) * radius).toFixed(2)}`;
+
+    // Root, tip, tip, root for each tooth: the gaps between them are what is
+    // left over, so the teeth cannot drift out of step with the valleys.
+    const rim: string[] = [];
+    for (let tooth = 0; tooth < teeth; tooth++) {
+      const a = tooth * step;
+      rim.push(at(a - step * 0.34, ROOT));
+      rim.push(at(a - step * 0.18, TIP));
+      rim.push(at(a + step * 0.18, TIP));
+      rim.push(at(a + step * 0.34, ROOT));
+    }
+
+    const hole = `M${at(0, HOLE)}A${HOLE} ${HOLE} 0 1 0 ${at(Math.PI, HOLE)}A${HOLE} ${HOLE} 0 1 0 ${at(0, HOLE)}Z`;
+    const path = document.createElementNS(SVG, 'path');
+    path.setAttribute('d', `M${rim.join('L')}Z${hole}`);
+    path.setAttribute('fill-rule', 'evenodd');
+    svg.appendChild(path);
+  });
+}
+
+/** Tip of a tooth, root between two of them, and the bore in the middle. */
+const TIP = 11;
+const ROOT = 8.1;
+const HOLE = 3.5;
+
+/** Reset: three quarters of a circle turning back on itself, and a head. */
+function resetMark(): SVGElement {
+  return svgMark((svg) => {
+    // From up-right, clockwise round to up-left, leaving the gap at the top.
+    line(svg, 'M16.6 7.4A6.5 6.5 0 1 1 7.4 7.4');
+    // The head sits at the start of that arc and points the way back along
+    // it, which is the direction the node is being sent.
+    line(svg, 'M16.6 7.4L19.9 7.4M16.6 7.4L16.6 10.7');
+  });
+}
+
+function fanMark(): SVGElement {
+  return svgMark((svg) => {
+    for (const [x, y] of [
+      [5, 5],
+      [12, 3],
+      [19, 5],
+    ]) {
+      line(svg, `M12 20L${x} ${y}`);
+    }
+  });
 }
 
 /**
@@ -776,18 +934,48 @@ function paintActions(): void {
   hud.actions.style.top = `${at.y}px`;
 
   const size = buttonSize();
-  const radius = at.radius + size / 2 + RING_GAP;
+  const radius = at.radius + size / 2 + ringGap(at.radius);
+  const actions = actionsFor(node);
 
-  layOutRing(node.id, actionsFor(node), radius);
+  layOutRing(node.id, actions, radius);
 
-  // The clear circle takes in the whole ring and the prices beside it, so
+  // A ring with nothing in it is a selection that appears to do nothing, so
+  // where there is no action there is a reason instead.
+  const missing = actions.length === 0 ? missingFor(match.state, node.id) : null;
+  hud.actionsEmpty.hidden = missing === null;
+  hud.actionsEmpty.textContent = missing ?? '';
+  hud.actionsEmpty.style.transform = `translate(-50%, ${radius}px)`;
+
+  // The clear circle takes in the whole ring and the price above it, so
   // nothing the player is about to press is standing in the dark.
-  paintDim({ x: at.x, y: at.y, radius: radius + size });
+  paintDim({ x: at.x, y: at.y, radius: radius + size + PRICE_ROOM });
 }
 
-/** How far outside the node the buttons sit, and the price outside them. */
+/**
+ * How far outside the node the buttons sit.
+ *
+ * A share of how big the node is drawn rather than a flat number of pixels,
+ * with the flat number as a floor. A fixed gap is right once and wrong
+ * everywhere else: the node grows with the zoom and the buttons do not, so
+ * ten pixels that look like room at rest look like a node wearing a collar
+ * at four times in.
+ */
+function ringGap(nodeRadius: number): number {
+  return Math.max(RING_GAP, nodeRadius * RING_SPREAD);
+}
+
 const RING_GAP = 10;
-const PRICE_GAP = 9;
+const RING_SPREAD = 0.35;
+
+/**
+ * The gap between two buttons on the ring, and the floor under it.
+ *
+ * An hour of the clock face wherever an hour is wide enough to hold a button,
+ * and wider where it is not: at rest the ring is small and an hour of its arc
+ * is narrower than the button that would stand on it, so the two would
+ * overlap. Zoomed in there is room, and the spacing is exactly an hour.
+ */
+const HOUR = Math.PI / 6;
 
 /**
  * Dims the board around the node being given orders.
@@ -895,7 +1083,11 @@ function layOutRing(nodeId: number, actions: NodeAction[], radius: number): void
     });
   }
 
-  const step = (Math.PI * 2) / actions.length;
+  // A fan centred on twelve o'clock: the set is balanced about the top of the
+  // node rather than starting there and walking round. Two buttons sit either
+  // side of twelve, three put one on it and one to each hand.
+  const step = Math.max(HOUR, (buttonSize() + 8) / radius);
+  const middle = (actions.length - 1) / 2;
 
   actions.forEach((action, index) => {
     const slot = hud.actionRing.children[index] as HTMLElement | undefined;
@@ -906,21 +1098,17 @@ function layOutRing(nodeId: number, actions: NodeAction[], radius: number): void
     button.title = action.title;
     button.setAttribute('aria-label', priceLabel(action));
 
-    // Evenly round the node from the top, clockwise. The seat carries the
-    // placement and the button carries the press, so pressing one never has
-    // to know where on the ring it is sitting.
-    const angle = -Math.PI / 2 + index * step;
+    // The seat carries the placement and the button carries the press, so
+    // pressing one never has to know where on the ring it is sitting.
+    const angle = -Math.PI / 2 + (index - middle) * step;
     const out = { x: Math.cos(angle), y: Math.sin(angle) };
     slot.style.setProperty('--x', `${out.x * radius}px`);
     slot.style.setProperty('--y', `${out.y * radius}px`);
 
-    // The price sits directly outside its own button, along the same spoke,
-    // so it can never come to rest over the node or over another button.
-    const away = buttonSize() / 2 + PRICE_GAP;
+    // The price is parked over its own button by the stylesheet; all this
+    // has to say is what the price is.
     const tag = slot.lastElementChild as HTMLElement;
     tag.textContent = action.price === undefined ? '' : formatPoints(action.price);
-    tag.style.setProperty('--px', `${out.x * away}px`);
-    tag.style.setProperty('--py', `${out.y * away}px`);
   });
 }
 
@@ -952,33 +1140,37 @@ function actionsFor(node: GameNode): NodeAction[] {
 
   for (const kind of conversionsFor(match.state, node.id)) {
     const conversion = CONVERSIONS[kind]!;
+    const cost = costOf(kind);
     actions.push({
       mark: CONVERSION_MARKS[kind] ?? '•',
-      title: conversion.label,
-      price: conversion.cost,
-      disabled: node.points < conversion.cost,
+      title: conversion.action,
+      price: cost,
+      disabled: node.points < cost,
       run: () => void convertNode(match.state, HUMAN, node.id, kind),
     });
   }
 
   if (node.kind === 'balancer') {
     actions.push({
-      mark: '⚙',
+      mark: gearMark,
       title: 'Настроить раздачу',
       run: () => openShare(node.id),
     });
   }
 
-  if (CONVERSIONS[node.kind]) {
+  if (node.kind !== 'base') {
     actions.push({
-      mark: '↺',
-      title: 'Вернуть обычный узел',
+      mark: resetMark,
+      title: 'Сбросить тип узла',
       run: () => void revertNode(match.state, HUMAN, node.id),
     });
   }
 
   return actions;
 }
+
+/** Room above a button for its price, so the dimming never falls across it. */
+const PRICE_ROOM = 16;
 
 /** What a screen reader says: the button's job, and the price if it has one. */
 function priceLabel(action: NodeAction): string {

@@ -1,5 +1,5 @@
 import { effectiveAttack } from '../core/combat';
-import { CONVERSIONS, conversionsFor, convertNode } from '../core/convert';
+import { CONVERSIONS, conversionsFor, convertNode, costOf } from '../core/convert';
 import { growthRateOf } from '../core/growth';
 import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { upgradeCost } from '../core/levels';
@@ -221,6 +221,7 @@ const HUB_DEPTH = 2;
 function buildHubs(state: GameState, player: OwnerId): void {
   const conversion = CONVERSIONS['balancer'];
   if (!conversion) return;
+  const cost = costOf('balancer');
 
   let held = 0;
   let hubs = 0;
@@ -236,7 +237,7 @@ function buildHubs(state: GameState, player: OwnerId): void {
   let best: GameNode | undefined;
 
   for (const node of state.nodes) {
-    if (node.owner !== player || node.points < conversion.cost) continue;
+    if (node.owner !== player || node.points < cost) continue;
     if ((toFront[node.id] ?? 0) < HUB_DEPTH) continue;
     if (!conversionsFor(state, node.id).includes('balancer')) continue;
 

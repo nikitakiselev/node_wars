@@ -16,6 +16,13 @@ export interface PlayOptions {
    * seen on a phone.
    */
   controls: ControlsOption;
+  /**
+   * Whether the developer switch is on.
+   *
+   * Off unless asked for, and asked for only from the address bar: it changes
+   * the rules, so it must never be something a player arrives at by accident.
+   */
+  dev: boolean;
 }
 
 export type ControlsOption = 'auto' | 'touch' | 'mouse';
@@ -27,7 +34,16 @@ const CONTROLS = new Set<ControlsOption>(['auto', 'touch', 'mouse']);
 export function readOptions(search: string): PlayOptions {
   const params = new URLSearchParams(search);
 
-  return { autoPause: autoPause(params), controls: controls(params) };
+  return { autoPause: autoPause(params), controls: controls(params), dev: dev(params) };
+}
+
+function dev(params: URLSearchParams): boolean {
+  if (!params.has('dev')) return false;
+
+  // A bare ?dev counts as switching it on, the way a flag reads; ?dev=off is
+  // the only way to have the word there and mean no.
+  const value = (params.get('dev') ?? '').trim().toLowerCase();
+  return value === '' || !OFF.has(value);
 }
 
 function autoPause(params: URLSearchParams): boolean {

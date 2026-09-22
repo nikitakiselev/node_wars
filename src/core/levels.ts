@@ -1,3 +1,4 @@
+import { devMode } from './dev';
 import type { GameNode } from './state';
 
 /**
@@ -44,6 +45,10 @@ export function radiusForLevel(level: number): number {
  */
 export function upgradeCost(level: number): number | null {
   if (clampLevel(level) >= MAX_LEVEL) return null;
+  // Free while the developer switch is on, so that a board can be built up to
+  // look at something rather than played up to it. The ceiling still holds:
+  // free is a price, not a way past the top level.
+  if (devMode()) return 0;
   return capacityForLevel(level + 1) - capacityForLevel(level);
 }
 

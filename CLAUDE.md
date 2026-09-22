@@ -101,7 +101,9 @@ why a hub belongs in the rear — the bot's own rule refuses to build one within
 two hops of the fighting.
 
 Three ways to share, `SHARE_MODES` in `core/balancer.ts`, under the load
-balancer's own names because that is what the node is. **Round Robin** sends
+balancer's own names because that is what the node is. A new hub arrives on
+**Adaptive** (`DEFAULT_SHARE`) — levelling is what a hub is built for, and
+round robin is the choice a player makes after watching the default work. **Round Robin** sends
 the whole parcel to the next output in turn. **Adaptive** and **Broadcast**
 both cut the parcel up and send to every output at once; they differ only in
 the weights — Broadcast splits evenly, Adaptive first brings whoever is behind
@@ -114,11 +116,18 @@ would get the whole parcel sent to the first, which then passes the second,
 and the two slosh back and forth for the rest of the match. Topping up settles
 — they draw level and then rise together.
 
-**Every share is rounded down and no mode may ever exceed the parcel.** The
-leftover, never more than a point per output, stays on the hub and goes out
-with the next one. Rounding the other way would print points, and
-`balancer.test.ts` checks every mode against every awkward parcel size for
-exactly that.
+**A split parcel adds up to the parcel exactly, and `apportion` is what makes
+that true.** Every share is rounded down first — rounding the other way would
+print points — and the points rounding shaved off then go, one each, to
+whichever shares lost the most to it. That is the largest-remainder rule.
+
+Leaving the leftover on the hub instead was the first attempt and it is worth
+knowing why it failed: the hub shipped it on the very next step as a second,
+tiny squad chasing the first, and from the board it looked like the
+balancer finding points from somewhere. Ties in the remainder are broken from
+a moving start, so an even three-way split does not quietly favour the same
+output for a whole match. `balancer.test.ts` checks every mode against every
+awkward parcel size that the total sent equals the parcel.
 
 A split parcel is one squad per output rather than one squad, so a hub with
 five wires is five particle streams where a wire is one. Hubs are few — one
@@ -437,6 +446,40 @@ capacities, upgrade costs, the fortress and farm multipliers — is read from
 the tables the game plays by, so tuning balance cannot leave the help saying
 something else. Its tests assert exactly that, plus that it stays short.
 
+**Changing what the game does is not finished until the rules panel says so.**
+A new action, a new kind, a rule that works differently from how it used to —
+the player learns all of it here and nowhere else, and a panel that describes
+last week's game is worse than no panel, because it is believed. Treat it the
+way the numbers are already treated: not a document kept alongside the code,
+but part of the change itself.
+
+Its budget is real and the tests hold it: a section may carry at most four
+lines and a line at most a hundred characters. When something new has to go
+in, the question is what it replaces or which section it belongs to — not
+whether to write a fifth line. Saying less about more is the job.
+
+And it has two wordings. A sentence about giving an order has to exist for a
+mouse and for a finger, and the touch one may not name a key or a button that
+is not there; that is checked.
+
+## The developer switch
+
+`?dev` turns it on; `core/dev.ts` holds it as a value that is **set**, never
+one that is read from the URL there — core must not know an address bar
+exists, or the rules and the bots stop running under Vitest in Node.
+`app/options.ts` reads the address and `main.ts` hands the answer over, the
+same road `?autopause` and `?controls` take.
+
+It makes building free: `upgradeCost` and `costOf` both return 0, so the
+button, the bots, the rules panel and the rule that charges cannot quote
+different numbers at each other. **Free is a price, not a way past a
+condition** — the level ceiling and the crossroads rule still hold.
+
+It is deliberately not part of `GameState` and never travels in a save: a
+board built up for nothing is not one anybody should be able to hand on. And
+it is worn on the edge of the window in amber, because a switch that changes
+the rules has to be visible while it is on.
+
 ## Saving
 
 `app/save.ts` writes the match to `localStorage` under one key, stamped with
@@ -535,7 +578,15 @@ there too, which is why the handlers come first in the file.
 - **One function owns the clock.** `updateRunning` in `main.ts` decides whether
   the ticker runs, because two separate things stop it — the setup dialog and
   the pause — and letting each call start/stop directly meant whoever spoke
-  last won.
+  last won. **A dialog over a live match does not stop it**: `covered()` names
+  only setup and resume, behind which sits a board nobody is playing yet. The
+  balancer's panel is a setting on a node in a match that is going on, so the
+  match goes on — and because it does, the panel rebuilds its rows only when
+  the outputs change and moves only their numbers on the frame, or the × would
+  be taken out from under the cursor between press and release.
+- **Escape puts away one thing at a time**: a dialog, then the selected node,
+  then the pause. A ring of buttons over the board is the nearest thing to a
+  dialog, and letting go of a node should not also cost you the board.
 - **`renderer.draw()` does not put anything on the canvas.** The ticker normally
   renders; it is stopped while the setup dialog is open, so a frame drawn then
   needs an explicit `app.render()`.

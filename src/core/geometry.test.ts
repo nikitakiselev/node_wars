@@ -89,6 +89,19 @@ describe('wireAtPoint', () => {
     expect(wireAtPoint(wired(), 0, 200)).toBeNull();
   });
 
+  test('a node under the cursor wins: the wire runs under it', () => {
+    // The line joins two centres, so it passes through both circles. Resting
+    // on a node must not bring up the × for a wire nobody pointed at.
+    expect(wireAtPoint(wired(), 0, 0)).toBeNull();
+    expect(wireAtPoint(wired(), 8, 6)).toBeNull();
+  });
+
+  test('the stretch inside a node is not part of the wire', () => {
+    // On the line, past the far edge of the node but still within its reach.
+    expect(wireAtPoint(wired(), 14, 0)).toBeNull();
+    expect(wireAtPoint(wired(), 60, 0)).toEqual({ from: 0, to: 1 });
+  });
+
   test('picks the nearer wire when two run close together', () => {
     const state = wired();
     setWire(state, 0, 2, 0);

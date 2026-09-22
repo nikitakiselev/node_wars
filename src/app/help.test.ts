@@ -19,13 +19,16 @@ describe('the rules panel', () => {
       'захват',
       'обзор',
       'пауз',
+      'балансировщик',
     ]) {
       expect(titles, topic).toContain(topic);
     }
   });
 
   test('stays short enough to read at a glance', () => {
-    expect(sections.length).toBeLessThanOrEqual(8);
+    // Nine, since the balancer earned a section of its own: it is the one
+    // thing in the game a player builds rather than finds.
+    expect(sections.length).toBeLessThanOrEqual(9);
 
     for (const section of sections) {
       expect(section.lines.length, section.title).toBeLessThanOrEqual(4);

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { SHARE_MODES, flushBalancers, shareModeOf } from './balancer';
+import { DEFAULT_SHARE, SHARE_MODES, flushBalancers, shareModeOf } from './balancer';
 import { makeNode, makeState } from './fixtures';
 import { applyGrowth } from './growth';
 import { setWire } from './wires';
@@ -78,14 +78,14 @@ describe('a hub keeps nothing and earns nothing', () => {
     expect(state.squads).toHaveLength(0);
   });
 
-  test('a mode nobody recognises is read as the plain one', () => {
+  test('a mode nobody recognises is read as the one a hub is built on', () => {
     const state = hub('round', 30);
     // A save written by another build, or by hand.
     state.nodes[0]!.share = 'nonsense' as ShareMode;
 
-    expect(shareModeOf(state.nodes[0]!)).toBe('round');
+    expect(shareModeOf(state.nodes[0]!)).toBe(DEFAULT_SHARE);
     flushBalancers(state);
-    expect(state.squads).toHaveLength(1);
+    expect(state.squads.length).toBeGreaterThan(0);
   });
 });
 
@@ -132,13 +132,30 @@ describe('Broadcast', () => {
     expect(sent(state)).toEqual({ 1: 30, 2: 30, 3: 30 });
   });
 
-  test('what will not divide stays on the hub rather than being invented', () => {
+  test('what will not divide is handed out, not left behind', () => {
     const state = hub('broadcast', 100);
 
     flushBalancers(state);
 
-    expect(sent(state)).toEqual({ 1: 33, 2: 33, 3: 33 });
-    expect(state.nodes[0]!.points).toBe(1);
+    // A hundred between three is thirty-three each and one over; the one over
+    // goes out with the rest rather than chasing them a step later.
+    expect(sent(state)).toEqual({ 1: 34, 2: 33, 3: 33 });
+    expect(state.nodes[0]!.points).toBe(0);
+  });
+
+  test('the odd point moves down the list rather than always going first', () => {
+    const state = hub('broadcast', 0);
+    const extras: number[] = [];
+
+    for (let parcel = 0; parcel < 3; parcel++) {
+      state.squads = [];
+      state.nodes[0]!.points = 100;
+      flushBalancers(state);
+      const shares = sent(state);
+      extras.push(Number(Object.keys(shares).find((id) => shares[Number(id)] === 34)));
+    }
+
+    expect(extras).toEqual([1, 2, 3]);
   });
 });
 
@@ -149,9 +166,12 @@ describe('Adaptive', () => {
     flushBalancers(state);
     land(state);
 
-    expect(state.nodes[1]!.points).toBe(63);
-    expect(state.nodes[2]!.points).toBe(63);
-    expect(state.nodes[3]!.points).toBe(63);
+    // 10, 40 and 40 with a hundred to share is sixty-three each, and the odd
+    // point has to land somewhere: level means within a point, not to the point.
+    const held = [1, 2, 3].map((id) => state.nodes[id]!.points);
+    expect(Math.min(...held)).toBe(63);
+    expect(Math.max(...held) - Math.min(...held)).toBeLessThanOrEqual(1);
+    expect(state.nodes[0]!.points).toBe(0);
   });
 
   test('a parcel too small to level them is shared out in proportion', () => {
@@ -195,6 +215,8 @@ describe('what a hub can never do', () => {
         const total = state.squads.reduce((sum, squad) => sum + squad.amount, 0);
         expect(total, `${mode} with ${parcel}`).toBeLessThanOrEqual(parcel);
         expect(state.nodes[0]!.points, `${mode} with ${parcel}`).toBeGreaterThanOrEqual(0);
+        // And nothing is stranded: what came in went out, to the point.
+        expect(total, `${mode} with ${parcel}`).toBe(parcel);
       }
     }
   });

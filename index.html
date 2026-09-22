@@ -42,26 +42,28 @@
 
     <div class="hud">
       <div data-hud-top>
-        <div class="tide" data-tide></div>
-        <div class="readout" data-readout></div>
+        <button class="menu" type="button" data-pause aria-label="Меню">
+          <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
+            <path
+              d="M4 7h16M4 12h16M4 17h16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+        <div class="scores">
+          <div class="tide" data-tide></div>
+          <div class="readout" data-readout></div>
+        </div>
       </div>
 
       <div></div>
 
       <div class="bottom" data-hud-bottom>
-        <div class="bar">
+        <div class="bar" data-bar>
           <div class="modes" data-choices="sendMode"></div>
-          <button class="menu" type="button" data-pause aria-label="Меню">
-            <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
-              <path
-                d="M4 7h16M4 12h16M4 17h16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
         </div>
 
         <div class="footer">
@@ -75,11 +77,6 @@
               узел сам шлёт половину дальше.
             </p>
           </div>
-          <div class="controls">
-            <span data-seed></span>
-            <button type="button" data-help>Правила</button>
-            <button type="button" data-open-settings>Новая партия</button>
-          </div>
         </div>
       </div>
     </div>
@@ -92,6 +89,7 @@
         <button type="button" class="pause__rules" data-open-settings>Новая партия</button>
         <button type="button" class="pause__rules" data-help>Правила</button>
       </div>
+      <span data-seed></span>
     </div>
 
     <dialog class="help">
@@ -119,6 +117,7 @@
 
     <div class="actions" hidden>
       <div class="actions__ring" data-actions-ring></div>
+      <span class="actions__empty" data-actions-empty hidden></span>
     </div>
 
     <dialog class="share">

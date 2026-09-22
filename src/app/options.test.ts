@@ -43,3 +43,21 @@ describe('readOptions', () => {
     expect(readOptions('?controls').controls).toBe('auto');
   });
 });
+
+describe('the developer switch', () => {
+  test('is off unless the address asks for it', () => {
+    expect(readOptions('').dev).toBe(false);
+    expect(readOptions('?controls=touch').dev).toBe(false);
+  });
+
+  test('a bare ?dev switches it on, the way a flag reads', () => {
+    expect(readOptions('?dev').dev).toBe(true);
+    expect(readOptions('?dev=on').dev).toBe(true);
+    expect(readOptions('?dev=1').dev).toBe(true);
+  });
+
+  test('the word can still be there and mean no', () => {
+    expect(readOptions('?dev=off').dev).toBe(false);
+    expect(readOptions('?dev=false').dev).toBe(false);
+  });
+});

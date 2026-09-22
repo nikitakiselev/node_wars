@@ -1,4 +1,4 @@
-import { BALANCER_COST, MIN_BALANCER_NEIGHBOURS } from '../core/convert';
+import { MIN_BALANCER_NEIGHBOURS, costOf } from '../core/convert';
 import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { MAX_LEVEL, capacityForLevel, upgradeCost } from '../core/levels';
 
@@ -71,8 +71,7 @@ export function helpSections(controls: Controls = 'mouse'): HelpSection[] {
       lines: [
         'Обычный узел от уровня получает только объём, остальные — ещё и своё умение.',
         'Ядро на карте одно, посередине. Пока оно ваше, быстрее растёт вся ваша сеть.',
-        `Узел ${MAX_LEVEL} уровня с ${MIN_BALANCER_NEIGHBOURS} своими соседями строится в балансировщик за ${BALANCER_COST}.`,
-        'Балансировщик не зарабатывает и не копит: пришедшее сразу уходит по его проводам.',
+        'Любому своему узлу можно сбросить тип обратно в обычный — это ничего не стоит.',
       ],
       table: {
         head: ['', ...LEVELS.map(String)],
@@ -103,6 +102,15 @@ export function helpSections(controls: Controls = 'mouse'): HelpSection[] {
           ? 'Из узла один провод, из балансировщика — к каждому соседу. Убрать: тем же режимом.'
           : 'Из узла один провод, из балансировщика — к каждому соседу. Убрать: навести и ×.',
         'Атаковать провод не умеет — куда бить, решаете вы.',
+      ],
+    },
+    {
+      title: 'Балансировщик',
+      lines: [
+        `Узел ${MAX_LEVEL} уровня с ${MIN_BALANCER_NEIGHBOURS} своими соседями строится в балансировщик за ${costOf('balancer')}.`,
+        'Он не зарабатывает и не копит: всё пришедшее тут же уходит дальше по проводам.',
+        'Проводов у него столько, сколько соседей, а как делить — выбирается в настройках узла.',
+        'Пустой узел берут одним очком, поэтому место ему в тылу, а не на границе.',
       ],
     },
     {
