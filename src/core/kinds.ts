@@ -23,6 +23,9 @@ interface KindTable {
 
 const NONE = [1, 1, 1, 1, 1] as const;
 
+/** A balancer earns nothing at any level: it shares out, it does not produce. */
+const ZERO = [0, 0, 0, 0, 0] as const;
+
 const BY_LEVEL: Record<NodeKind, KindTable> = {
   base: {
     defence: NONE,
@@ -43,6 +46,11 @@ const BY_LEVEL: Record<NodeKind, KindTable> = {
     defence: NONE,
     growth: NONE,
     aura: [1.12, 1.15, 1.18, 1.22, 1.28],
+  },
+  balancer: {
+    defence: NONE,
+    growth: ZERO,
+    aura: NONE,
   },
 };
 

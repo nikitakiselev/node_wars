@@ -37,7 +37,7 @@ export function makeState(nodes: GameNode[], edgePairs: [number, number][]): Gam
     edges,
     adjacency,
     islands: nodes.map(() => 0),
-    wires: nodes.map(() => undefined),
+    wires: nodes.map(() => []),
     squads: [],
     time: 0,
     winner: null,

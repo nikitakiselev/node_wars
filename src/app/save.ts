@@ -8,7 +8,7 @@ import { HUMAN, type Match, type MatchSettings } from './match';
  * rule that reads state written by an older build. A save from another version
  * is refused rather than loaded into a game that will misread it.
  */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 const KEY = 'node-wars/save';
 
@@ -100,10 +100,12 @@ function looksLikeState(state: Record<string, unknown>): boolean {
 function reviveState(state: Record<string, unknown>): GameState {
   const revived = state as unknown as GameState;
 
-  // JSON has no holes: an array with gaps comes back full of nulls, and a wire
-  // of null is not the same as no wire at all.
-  revived.wires = (state['wires'] as (number | null | undefined)[]).map((wire) =>
-    wire === null ? undefined : wire,
+  // A node's wires are a list, and a node with none has an empty one. JSON
+  // round-trips that faithfully; what it does not promise is that a
+  // hand-edited or truncated file has a list there at all, so anything that
+  // is not one becomes an empty one rather than a crash on the first step.
+  revived.wires = (state['wires'] as unknown[]).map((wires) =>
+    Array.isArray(wires) ? (wires as number[]) : [],
   );
 
   return revived;

@@ -41,41 +41,46 @@ export function squadPosition(state: GameState, squad: Squad): { x: number; y: n
 const WIRE_GRAB = 12;
 
 /**
- * The node whose supply wire runs under a point, or null.
+ * Which wire runs under a point, as the pair of nodes it joins.
  *
- * Returns the source node, since that is what identifies a wire — a node has
- * at most one.
+ * A source node alone used to identify a wire, because a node had at most
+ * one. A balancer has one per neighbour, so it takes both ends to say which
+ * line the cursor is resting on — and the × has to land on the right one.
  */
-export function wireAtPoint(state: GameState, x: number, y: number): number | null {
-  let best: number | null = null;
+export interface WireRef {
+  from: number;
+  to: number;
+}
+
+export function wireAtPoint(state: GameState, x: number, y: number): WireRef | null {
+  let best: WireRef | null = null;
   let bestDistance = WIRE_GRAB;
 
   state.nodes.forEach((source, fromId) => {
-    const toId = state.wires[fromId];
-    if (toId === undefined) return;
-    const target = state.nodes[toId];
-    if (!target) return;
+    for (const toId of state.wires[fromId] ?? []) {
+      const target = state.nodes[toId];
+      if (!target) continue;
 
-    const distance = distanceToSegment(x, y, source.x, source.y, target.x, target.y);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = fromId;
+      const distance = distanceToSegment(x, y, source.x, source.y, target.x, target.y);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = { from: fromId, to: toId };
+      }
     }
   });
 
   return best;
 }
 
-/** Halfway along a node's wire, where its controls sit. */
+/** Halfway along a wire, where its controls sit. */
 export function wireMidpoint(
   state: GameState,
-  fromId: number,
+  wire: WireRef,
 ): { x: number; y: number } | null {
-  const toId = state.wires[fromId];
-  if (toId === undefined) return null;
+  if (!state.wires[wire.from]?.includes(wire.to)) return null;
 
-  const source = state.nodes[fromId];
-  const target = state.nodes[toId];
+  const source = state.nodes[wire.from];
+  const target = state.nodes[wire.to];
   if (!source || !target) return null;
 
   return { x: (source.x + target.x) / 2, y: (source.y + target.y) / 2 };

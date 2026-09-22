@@ -45,7 +45,7 @@ describe('saving a match', () => {
     expect(loadSave(where)!.settings).toEqual(match.settings);
   });
 
-  test('keeps the supply wires, holes and all', () => {
+  test('keeps the supply wires, and a node with none keeps an empty list', () => {
     const where = storage();
     const match = played();
     const mine = match.state.nodes.find((node) => node.owner === 0)!;
@@ -57,11 +57,38 @@ describe('saving a match', () => {
     writeSave(where, match);
     const back = loadSave(where)!;
 
-    // JSON turns a hole in an array into null; a wire of null is not a wire.
     expect(back.state.wires).toEqual(match.state.wires);
-    for (const wire of back.state.wires) {
-      expect(wire === undefined || typeof wire === 'number').toBe(true);
+    // Every node has a list, even an empty one: a missing one would be a
+    // second case for every rule that walks the wires.
+    for (const wires of back.state.wires) {
+      expect(Array.isArray(wires)).toBe(true);
     }
+  });
+
+  test('a hub comes back pointing at all of its neighbours', () => {
+    const where = storage();
+    const match = played();
+    const mine = match.state.nodes.find(
+      (node) =>
+        node.owner === 0 &&
+        match.state.adjacency[node.id]!.filter((id) => match.state.nodes[id]!.owner === 0)
+          .length >= 2,
+    );
+    if (!mine) return;
+
+    mine.kind = 'balancer';
+    mine.share = 'balance';
+    mine.cursor = 3;
+    for (const id of match.state.adjacency[mine.id]!) {
+      if (match.state.nodes[id]!.owner === 0) setWire(match.state, 0, mine.id, id);
+    }
+
+    writeSave(where, match);
+    const back = loadSave(where)!;
+
+    expect(back.state.wires[mine.id]).toEqual(match.state.wires[mine.id]);
+    expect(back.state.nodes[mine.id]!.share).toBe('balance');
+    expect(back.state.nodes[mine.id]!.cursor).toBe(3);
   });
 
   test('a save written before portrait boards existed is still a wide board', () => {

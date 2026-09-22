@@ -1,4 +1,4 @@
-import { nodeAtPoint, wireAtPoint } from '../core/geometry';
+import { nodeAtPoint, wireAtPoint, type WireRef } from '../core/geometry';
 import { sendSquad } from '../core/orders';
 import type { GameNode, GameState, OwnerId } from '../core/state';
 import { clearWire, setWire } from '../core/wires';
@@ -44,8 +44,8 @@ export class PointerControls {
   private chosen: number | null = null;
   /** Set while a drag is laying a supply wire rather than throwing a squad. */
   private wiring = false;
-  /** The wire the cursor is resting on, identified by its source node. */
-  private hovered: number | null = null;
+  /** The wire the cursor is resting on, by the pair of nodes it joins. */
+  private hovered: WireRef | null = null;
   /** Where the view was last grabbed, in canvas pixels. */
   private dragging: { x: number; y: number } | null = null;
 
@@ -87,8 +87,8 @@ export class PointerControls {
     return this.chosen;
   }
 
-  /** The wire under the cursor, by source node, or null. */
-  get hoveredWire(): number | null {
+  /** The wire under the cursor, by the pair it joins, or null. */
+  get hoveredWire(): WireRef | null {
     return this.hovered;
   }
 
@@ -293,7 +293,7 @@ export class PointerControls {
   /** Resting on a wire brings up its controls; dragging is not the time. */
   private restOn(point: { x: number; y: number }): void {
     const wire = wireAtPoint(this.getState(), point.x, point.y);
-    if (wire === this.hovered) return;
+    if (sameWire(wire, this.hovered)) return;
     this.hovered = wire;
     this.onUiChange();
   }
@@ -351,6 +351,12 @@ export class PointerControls {
     this.pressedAt = null;
     this.targets = new Set();
   }
+}
+
+/** Whether two readings of the hovered wire mean the same line. */
+function sameWire(a: WireRef | null, b: WireRef | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.from === b.from && a.to === b.to;
 }
 
 /** A finger holds down nothing; the mode bar speaks for it. */

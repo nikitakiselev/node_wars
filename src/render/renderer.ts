@@ -367,7 +367,7 @@ export class GameRenderer {
       const fill = Math.min(1, node.points / node.capacity);
       const full = node.points >= node.capacity;
       // A ring is ~200px around at most, so finer steps than this are invisible.
-      const signature = `${node.owner}:${node.level}:${Math.round(fill * 64)}:${full}`;
+      const signature = `${node.owner}:${node.kind}:${node.level}:${Math.round(fill * 64)}:${full}`;
       if (signature === view.lastRing) return;
       view.lastRing = signature;
 
@@ -394,7 +394,7 @@ export class GameRenderer {
     });
   }
 
-  /** The badge that says what kind of node this is: armour, rays, or a halo. */
+  /** The badge that says what kind of node this is: armour, rays, a halo or a fan. */
   private drawKindMark(ring: Graphics, node: GameNode, colour: number): void {
     if (node.kind === 'fortress') {
       // An angular outline outside the round gauge: corners are the one thing
@@ -411,6 +411,22 @@ export class GameRenderer {
       ring.stroke({ width: 2, color: colour, alpha: 0.7 });
       ring.circle(node.x, node.y, node.radius * (CORE_HALO + 0.22));
       ring.stroke({ width: 1, color: colour, alpha: 0.35 });
+      return;
+    }
+
+    if (node.kind === 'balancer') {
+      // A fan of three, pointing away. The farm's rays go the whole way round
+      // because a farm earns where it stands; a hub only ever passes things
+      // on, and its mark says so.
+      for (let ray = -1; ray <= 1; ray++) {
+        const angle = (ray * Math.PI) / 5 - Math.PI / 2;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        ring
+          .moveTo(node.x + cos * node.radius * 1.1, node.y + sin * node.radius * 1.1)
+          .lineTo(node.x + cos * node.radius * 1.55, node.y + sin * node.radius * 1.55)
+          .stroke({ width: 2.5, color: colour, alpha: 0.75 });
+      }
       return;
     }
 
@@ -560,38 +576,42 @@ export class GameRenderer {
     let shown = 0;
 
     state.nodes.forEach((source, fromId) => {
-      const toId = state.wires[fromId];
-      if (toId === undefined) return;
-      const target = state.nodes[toId];
-      if (!target) return;
-
-      const dx = target.x - source.x;
-      const dy = target.y - source.y;
-      const length = Math.hypot(dx, dy);
-      if (length < 1) return;
-
-      const ux = dx / length;
-      const uy = dy / length;
-      // Start and finish clear of both circles so the dashes read as a line
-      // between nodes rather than something growing out of them.
-      const start = source.radius + 4;
-      const finish = length - target.radius - 4;
-      const angle = Math.atan2(dy, dx);
       const colour = factionOf(source.owner).glow;
 
-      for (let at = start + phase - stride; at < finish; at += stride) {
-        const head = Math.max(start, at);
-        const tail = Math.min(finish, at + DASH_LENGTH);
-        if (tail <= head) continue;
+      // A balancer points at every neighbour it has, so this is a loop rather
+      // than a lookup. The cost is the same either way: a dash is a particle,
+      // and particles share one draw call however many of them there are.
+      for (const toId of state.wires[fromId] ?? []) {
+        const target = state.nodes[toId];
+        if (!target) continue;
 
-        const dash = this.dashAt(shown++);
-        dash.x = source.x + ux * head;
-        dash.y = source.y + uy * head;
-        dash.rotation = angle;
-        dash.scaleX = (tail - head) / DASH_TILE;
-        dash.scaleY = WIRE_WIDTH / DASH_TILE;
-        dash.tint = colour;
-        dash.alpha = 0.75;
+        const dx = target.x - source.x;
+        const dy = target.y - source.y;
+        const length = Math.hypot(dx, dy);
+        if (length < 1) continue;
+
+        const ux = dx / length;
+        const uy = dy / length;
+        // Start and finish clear of both circles so the dashes read as a line
+        // between nodes rather than something growing out of them.
+        const start = source.radius + 4;
+        const finish = length - target.radius - 4;
+        const angle = Math.atan2(dy, dx);
+
+        for (let at = start + phase - stride; at < finish; at += stride) {
+          const head = Math.max(start, at);
+          const tail = Math.min(finish, at + DASH_LENGTH);
+          if (tail <= head) continue;
+
+          const dash = this.dashAt(shown++);
+          dash.x = source.x + ux * head;
+          dash.y = source.y + uy * head;
+          dash.rotation = angle;
+          dash.scaleX = (tail - head) / DASH_TILE;
+          dash.scaleY = WIRE_WIDTH / DASH_TILE;
+          dash.tint = colour;
+          dash.alpha = 0.75;
+        }
       }
     });
 

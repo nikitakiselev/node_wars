@@ -1,4 +1,5 @@
 import { resolveArrival } from './combat';
+import { flushBalancers } from './balancer';
 import { applyGrowth } from './growth';
 import { flushWires } from './wires';
 import { NEUTRAL, type GameState, type OwnerId } from './state';
@@ -15,6 +16,10 @@ export function step(state: GameState, dt: number): void {
   state.time += dt;
   applyGrowth(state.nodes, dt);
   flushWires(state);
+  // After the wires, so the hubs share out against a board whose dead wires
+  // have already been dropped; before the squads move, so a parcel that
+  // landed on the last step leaves on this one.
+  flushBalancers(state);
   advanceSquads(state, dt);
   state.winner = findWinner(state);
 }

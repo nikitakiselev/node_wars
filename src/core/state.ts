@@ -10,10 +10,23 @@ export const NEUTRAL: OwnerId = -1;
  * - `base` — an ordinary node.
  * - `fortress` — halves incoming hostile force, so taking it costs double.
  * - `farm` — grows twice as fast, but holds no more.
+ * - `core` — earns for every node its holder owns.
+ * - `balancer` — earns nothing and keeps nothing; shares out what reaches it.
  *
  * Terrain, not allegiance: a kind works the same for whoever holds the node.
+ * The first four are dealt by the map generator; a balancer is built, which
+ * is what `CONVERSIONS` in `convert.ts` is for.
  */
-export type NodeKind = 'base' | 'fortress' | 'farm' | 'core';
+export type NodeKind = 'base' | 'fortress' | 'farm' | 'core' | 'balancer';
+
+/**
+ * How a balancer picks which of its outputs gets the next parcel.
+ *
+ * - `round` — each parcel to the next output in the list.
+ * - `balance` — each parcel to whichever output is emptiest against its own
+ *   ceiling, the way a battery balancer pulls cells to one voltage.
+ */
+export type ShareMode = 'round' | 'balance';
 
 export interface GameNode {
   id: number;
@@ -32,6 +45,10 @@ export interface GameNode {
   kind: NodeKind;
   owner: OwnerId;
   points: number;
+  /** Balancers only: how this one picks the next output. */
+  share?: ShareMode;
+  /** Balancers only: where round-robin left off. */
+  cursor?: number;
 }
 
 export interface Edge {
@@ -64,10 +81,15 @@ export interface GameState {
    */
   islands: number[];
   /**
-   * wires[nodeId] is the neighbour that node automatically feeds once it
-   * fills up, if any. At most one per node.
+   * wires[nodeId] lists the neighbours that node automatically feeds, and is
+   * empty for most of the board.
+   *
+   * An ordinary node is allowed one, so laying a second replaces the first;
+   * a balancer is allowed one per neighbour, which is the whole point of it.
+   * Always an array, never a hole: JSON has no holes, and a list that is
+   * sometimes missing is a second case to revive and to test.
    */
-  wires: (number | undefined)[];
+  wires: number[][];
   squads: Squad[];
   /** Seconds of simulated time since the match began. */
   time: number;

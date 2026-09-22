@@ -7,7 +7,7 @@ import { wireMidpoint } from '../core/geometry';
 import { isEliminated } from '../core/simulation';
 import type { GameNode } from '../core/state';
 import { upgradeNode } from '../core/upgrade';
-import { clearWire } from '../core/wires';
+import { cutWire } from '../core/wires';
 import { standingsFor } from '../core/standings';
 import { SEND_MODES, type SendMode } from '../input/fractions';
 import { PointerControls } from '../input/pointer';
@@ -148,7 +148,7 @@ if (touchPlayer) hud.pause.appendChild(hud.seed);
 hud.cutWire.addEventListener('click', () => {
   const wire = controls.hoveredWire;
   if (wire === null) return;
-  clearWire(match.state, HUMAN, wire);
+  cutWire(match.state, HUMAN, wire.from, wire.to);
   controls.clearSelection();
   paintOverlays();
   app.render();
@@ -582,7 +582,7 @@ function paintWireControl(): void {
   hud.cutWire.style.top = `${at.y}px`;
 
   // The button belongs to the wire, so it wears the wire's colour.
-  const owner = match.state.nodes[wire!]?.owner ?? HUMAN;
+  const owner = match.state.nodes[wire!.from]?.owner ?? HUMAN;
   const colour = cssColour(factionOf(owner).glow);
   hud.cutWire.style.borderColor = colour;
   hud.cutWire.style.color = colour;

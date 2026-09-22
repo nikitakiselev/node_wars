@@ -73,7 +73,7 @@ describe('wireAtPoint', () => {
   }
 
   test('finds the wire the cursor is resting on', () => {
-    expect(wireAtPoint(wired(), 100, 3)).toBe(0);
+    expect(wireAtPoint(wired(), 100, 3)).toEqual({ from: 0, to: 1 });
   });
 
   test('ignores a cursor well clear of the line', () => {
@@ -93,7 +93,7 @@ describe('wireAtPoint', () => {
     const state = wired();
     setWire(state, 0, 2, 0);
 
-    expect(wireAtPoint(state, 4, 300)).toBe(2);
+    expect(wireAtPoint(state, 4, 300)).toEqual({ from: 2, to: 0 });
   });
 });
 
@@ -105,12 +105,21 @@ describe('wireMidpoint', () => {
     );
     setWire(state, 0, 0, 1);
 
-    expect(wireMidpoint(state, 0)).toEqual({ x: 100, y: 50 });
+    expect(wireMidpoint(state, { from: 0, to: 1 })).toEqual({ x: 100, y: 50 });
   });
 
   test('is nothing when the node has no wire', () => {
     const state = makeState([makeNode(0, { owner: 0 })], []);
 
-    expect(wireMidpoint(state, 0)).toBeNull();
+    expect(wireMidpoint(state, { from: 0, to: 1 })).toBeNull();
+  });
+
+  test('is nothing for a wire that is not there, though its neighbours are', () => {
+    const state = makeState(
+      [makeNode(0, { owner: 0 }), makeNode(1, { owner: 0 })],
+      [[0, 1]],
+    );
+
+    expect(wireMidpoint(state, { from: 0, to: 1 })).toBeNull();
   });
 });

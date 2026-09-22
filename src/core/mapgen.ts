@@ -279,7 +279,7 @@ function assemble(
     edges,
     adjacency,
     islands,
-    wires: nodes.map(() => undefined),
+    wires: nodes.map(() => []),
     squads: [],
     time: 0,
     winner: null,
