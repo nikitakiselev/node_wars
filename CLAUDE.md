@@ -345,6 +345,17 @@ screen size of a world thing measures it with `toScreen` — `ringFor` and
 where the fit is near 1, and threw every button on the action ring twice as
 far from its node on a phone, where the board is squeezed to fit.
 
+**An action's price is written beside its own button, on the same spoke**
+(`.actions__price`), and everything else it has to say — which level it is
+going to, what the next one is worth — lives on the button's label instead of
+on the board. A line under the ring spelling out "Уровень 2 → 3, за 40" cost a
+whole row of the board to say what a number says.
+
+**Nothing but the ring comes up while a node is selected.** The × on a supply
+wire is held back (`paintWireControl`): it would appear beside the ring, on a
+wire the player never asked about, and the two would be offering different
+meanings for the same click at the same moment.
+
 The ring of actions around a selected node is laid out **evenly round the
 circle from the top**, and the board behind it is **dimmed rather than
 blurred**, with a soft hole around the node (`paintDim` in `main.ts`). Three

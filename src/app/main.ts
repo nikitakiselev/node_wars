@@ -4,7 +4,7 @@ import { SHARE_MODES, shareModeOf } from '../core/balancer';
 import { CONVERSIONS, conversionsFor, convertNode, revertNode } from '../core/convert';
 import { formatPoints } from '../core/format';
 import { defenceMultiplier, growthMultiplier } from '../core/kinds';
-import { MAX_LEVEL, upgradeCost } from '../core/levels';
+import { upgradeCost } from '../core/levels';
 import { wireMidpoint } from '../core/geometry';
 import { isEliminated } from '../core/simulation';
 import type { GameNode, NodeKind, ShareMode } from '../core/state';
@@ -140,7 +140,6 @@ const hud = {
   dim: document.querySelector<HTMLElement>('[data-dim]')!,
   actions: document.querySelector<HTMLElement>('.actions')!,
   actionRing: document.querySelector<HTMLElement>('[data-actions-ring]')!,
-  actionNote: document.querySelector<HTMLElement>('[data-actions-note]')!,
   pause: document.querySelector<HTMLElement>('.pause')!,
   cutWire: document.querySelector<HTMLButtonElement>('[data-cut-wire]')!,
 };
@@ -663,7 +662,7 @@ function covering(): boolean {
 }
 
 /**
- * Parks the × on the wire the cursor is resting on.
+ * Parks the × on the wire the cursor is resting on, when nothing is selected.
  *
  * Right-clicking the node takes its wire down too, but nobody discovers that
  * on their own; a button on the wire itself is the way it gets found.
@@ -672,7 +671,10 @@ function paintWireControl(): void {
   const wire = controls.hoveredWire;
   const middle = wire === null ? null : wireMidpoint(match.state, wire);
 
-  if (!middle) {
+  // A selected node owns the board around it. The × would come up beside the
+  // ring, on a wire the player is not asking about, and the two of them would
+  // be offering different things a click could mean at the same moment.
+  if (controls.selected !== null || !middle) {
     hud.cutWire.hidden = true;
     return;
   }
@@ -704,8 +706,17 @@ function cssColour(value: number): string {
 interface NodeAction {
   /** What goes inside the button: a character, or a mark that is drawn. */
   mark: string | (() => SVGElement);
-  /** What the button is for, read out by a screen reader and on hover. */
+  /**
+   * What the button is for, read out by a screen reader and on hover.
+   *
+   * This is where the detail lives that used to sit on a line under the ring
+   * — which level the node is going to, what the next one is worth. On the
+   * board the price is the only part worth the room it takes; the rest is
+   * there for whoever asks for it.
+   */
   title: string;
+  /** Points it costs, shown beside the button. Free actions have none. */
+  price?: number;
   disabled?: boolean;
   run(): void;
 }
@@ -768,17 +779,15 @@ function paintActions(): void {
   const radius = at.radius + size / 2 + RING_GAP;
 
   layOutRing(node.id, actionsFor(node), radius);
-  hud.actionNote.textContent = noteFor(node);
-  hud.actionNote.style.transform = `translate(-50%, ${radius + size / 2 + NOTE_GAP}px)`;
 
-  // The clear circle takes in the whole ring, so nothing the player is about
-  // to press is standing in the dark.
+  // The clear circle takes in the whole ring and the prices beside it, so
+  // nothing the player is about to press is standing in the dark.
   paintDim({ x: at.x, y: at.y, radius: radius + size });
 }
 
-/** How far outside the node the buttons sit, and the note below them. */
+/** How far outside the node the buttons sit, and the price outside them. */
 const RING_GAP = 10;
-const NOTE_GAP = 12;
+const PRICE_GAP = 9;
 
 /**
  * Dims the board around the node being given orders.
@@ -868,6 +877,10 @@ function layOutRing(nodeId: number, actions: NodeAction[], radius: number): void
       if (typeof action.mark === 'string') button.textContent = action.mark;
       else button.appendChild(action.mark());
 
+      const price = document.createElement('span');
+      price.className = 'actions__price';
+      price.setAttribute('aria-hidden', 'true');
+
       // Through the list rather than through this action, so the handler
       // survives every frame that does not rebuild the ring.
       button.addEventListener('click', () => {
@@ -877,7 +890,7 @@ function layOutRing(nodeId: number, actions: NodeAction[], radius: number): void
         app.render();
       });
 
-      slot.appendChild(button);
+      slot.append(button, price);
       hud.actionRing.appendChild(slot);
     });
   }
@@ -890,12 +903,24 @@ function layOutRing(nodeId: number, actions: NodeAction[], radius: number): void
     if (!slot || !button) return;
 
     button.disabled = action.disabled ?? false;
+    button.title = action.title;
+    button.setAttribute('aria-label', priceLabel(action));
+
     // Evenly round the node from the top, clockwise. The seat carries the
     // placement and the button carries the press, so pressing one never has
     // to know where on the ring it is sitting.
     const angle = -Math.PI / 2 + index * step;
-    slot.style.setProperty('--x', `${Math.cos(angle) * radius}px`);
-    slot.style.setProperty('--y', `${Math.sin(angle) * radius}px`);
+    const out = { x: Math.cos(angle), y: Math.sin(angle) };
+    slot.style.setProperty('--x', `${out.x * radius}px`);
+    slot.style.setProperty('--y', `${out.y * radius}px`);
+
+    // The price sits directly outside its own button, along the same spoke,
+    // so it can never come to rest over the node or over another button.
+    const away = buttonSize() / 2 + PRICE_GAP;
+    const tag = slot.lastElementChild as HTMLElement;
+    tag.textContent = action.price === undefined ? '' : formatPoints(action.price);
+    tag.style.setProperty('--px', `${out.x * away}px`);
+    tag.style.setProperty('--py', `${out.y * away}px`);
   });
 }
 
@@ -916,7 +941,10 @@ function actionsFor(node: GameNode): NodeAction[] {
   if (cost !== null) {
     actions.push({
       mark: '+',
-      title: `Поднять уровень, ${cost}`,
+      title: [`Уровень ${node.level} → ${node.level + 1}`, bonusGained(node)]
+        .filter(Boolean)
+        .join(', '),
+      price: cost,
       disabled: node.points < cost,
       run: () => void upgradeNode(match.state, HUMAN, node.id),
     });
@@ -926,7 +954,8 @@ function actionsFor(node: GameNode): NodeAction[] {
     const conversion = CONVERSIONS[kind]!;
     actions.push({
       mark: CONVERSION_MARKS[kind] ?? '•',
-      title: `${conversion.label}, ${conversion.cost}`,
+      title: conversion.label,
+      price: conversion.cost,
       disabled: node.points < conversion.cost,
       run: () => void convertNode(match.state, HUMAN, node.id, kind),
     });
@@ -951,37 +980,9 @@ function actionsFor(node: GameNode): NodeAction[] {
   return actions;
 }
 
-/**
- * The line under the ring: what this node is, or what the next level costs.
- *
- * A hub has no next level and no price to quote, so it says what it is doing
- * instead — which is the one thing about it that is not visible on the board.
- */
-function noteFor(node: GameNode): string {
-  if (node.kind === 'balancer') {
-    const outputs = wiresFrom(match.state, node.id).length;
-    const mode = SHARE_MODES[shareModeOf(node)].label;
-    return outputs === 0 ? 'Раздавать некуда: нет проводов' : `${mode}, выходов ${outputs}`;
-  }
-
-  const cost = upgradeCost(node.level);
-  if (cost !== null) {
-    const short = Math.ceil(cost - node.points);
-    const step = `Уровень ${node.level} → ${node.level + 1}`;
-    const price = short > 0 ? `не хватает ${formatPoints(short)}` : `за ${cost}`;
-    return [step, price, bonusGained(node)].filter(Boolean).join(', ');
-  }
-
-  const buildable = conversionsFor(match.state, node.id)[0];
-  if (buildable) {
-    const conversion = CONVERSIONS[buildable]!;
-    const short = Math.ceil(conversion.cost - node.points);
-    return short > 0
-      ? `${conversion.label}: не хватает ${formatPoints(short)}`
-      : `${conversion.label} за ${conversion.cost}`;
-  }
-
-  return `Уровень ${MAX_LEVEL} — дальше некуда`;
+/** What a screen reader says: the button's job, and the price if it has one. */
+function priceLabel(action: NodeAction): string {
+  return action.price === undefined ? action.title : `${action.title}, ${action.price}`;
 }
 
 /**

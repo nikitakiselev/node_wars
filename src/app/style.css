@@ -597,6 +597,10 @@ button,
   height: 23px;
 }
 
+:root.touch .actions__price {
+  font-size: 14px;
+}
+
 
 /* Setup dialog, and the prompt that comes before it */
 
@@ -1108,17 +1112,37 @@ button,
   stroke-linecap: round;
 }
 
-.actions__note {
+/*
+ * What an action costs, parked just outside its own button.
+ *
+ * Along the same spoke as the button, so it can never come to rest over the
+ * node or over a neighbouring button however many actions the ring holds. A
+ * price is the only part of an action worth the room it takes on the board;
+ * everything else it has to say is on the button's own label.
+ */
+.actions__price {
   position: absolute;
   left: 0;
   top: 0;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: rgba(4, 18, 26, 0.85);
+  transform: translate(-50%, -50%) translate(var(--px, 0px), var(--py, 0px));
   color: #9fb4b8;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  /* The board behind is dark but never flat, and the price has no plate of
+     its own: the shadow is what keeps it legible over a node or an edge. */
+  text-shadow: 0 0 5px rgba(2, 12, 18, 0.95), 0 0 2px rgba(2, 12, 18, 0.95);
+  pointer-events: none;
+}
+
+.actions__price:empty {
+  display: none;
+}
+
+/* Out of reach reads as dimmer, the same way the button it belongs to does. */
+.actions button:disabled + .actions__price {
+  color: #5e757c;
 }
 
 /* Balancer settings, opened from the ring of actions */
