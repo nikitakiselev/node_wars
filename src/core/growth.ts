@@ -18,17 +18,19 @@ export function growthRateOf(node: GameNode): number {
  * Grows owned nodes toward their capacity.
  *
  * Nodes already at or above capacity hold steady, so reinforcing past the cap
- * is a deliberate choice rather than a leak. A player holding a core earns
+ * is a deliberate choice rather than a leak. `pace` multiplies the lot and is
+ * 1 in every match anybody plays; the tutorial runs it faster, because a
+ * lesson about where points go is no lesson while there are none to watch. A player holding a core earns
  * faster everywhere at once — that is what makes it worth crossing the board
  * for, rather than one more node to stand on.
  */
-export function applyGrowth(nodes: readonly GameNode[], dt: number): void {
+export function applyGrowth(nodes: readonly GameNode[], dt: number, pace = 1): void {
   const auras = aurasHeld(nodes);
 
   for (const node of nodes) {
     if (node.owner === NEUTRAL) continue;
     if (node.points >= node.capacity) continue;
-    const rate = growthRateOf(node) * (auras.get(node.owner) ?? 1);
+    const rate = growthRateOf(node) * (auras.get(node.owner) ?? 1) * pace;
     node.points = Math.min(node.capacity, node.points + rate * dt);
   }
 }

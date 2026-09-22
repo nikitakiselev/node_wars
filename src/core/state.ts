@@ -4,6 +4,9 @@ export type OwnerId = number;
 /** Nobody owns this node; it never grows and defends with its starting points. */
 export const NEUTRAL: OwnerId = -1;
 
+/** The person playing. Always the first seat, in every match. */
+export const HUMAN: OwnerId = 0;
+
 /**
  * What a node is, beyond its size.
  *
@@ -100,6 +103,12 @@ export interface GameState {
    */
   wireFill?: number;
   wireShare?: number;
+  /**
+   * How fast every node earns, against the ordinary rate. 1 in any real
+   * match; the tutorial winds it up so its lesson can be watched rather than
+   * waited out.
+   */
+  growth?: number;
   squads: Squad[];
   /** Seconds of simulated time since the match began. */
   time: number;

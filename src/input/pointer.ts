@@ -44,8 +44,8 @@ export class PointerControls {
   private chosen: number | null = null;
   /** Set while a drag is laying a supply wire rather than throwing a squad. */
   private wiring = false;
-  /** Where a chain of wires just came from, so sliding back does not undo it. */
-  private came: number | null = null;
+  /** The wires this drag has promised, laid all at once when it is let go. */
+  private chain: [number, number][] = [];
   /** The wire the cursor is resting on, by the pair of nodes it joins. */
   private hovered: WireRef | null = null;
   /** Where the view was last grabbed, in canvas pixels. */
@@ -81,6 +81,7 @@ export class PointerControls {
       targets: this.targets,
       selected: this.chosen,
       wiring: this.wiring,
+      chain: this.chain,
     };
   }
 
@@ -304,7 +305,7 @@ export class PointerControls {
   private beginDrag(node: GameNode, wiring: boolean): void {
     this.wiring = wiring;
     this.hovered = null;
-    this.came = null;
+    this.chain = [];
     this.cursor = { x: node.x, y: node.y };
     this.aimFrom(node.id);
   }
@@ -341,14 +342,18 @@ export class PointerControls {
 
     const node = this.ownNodeAt(point);
     // Not a node, the node we are standing on, or the one we just left: a
-    // finger wanders, and wandering back must not lay a wire the other way.
-    if (!node || node.id === this.from || node.id === this.came) return;
+    // finger wanders, and wandering back must not promise a wire the other way.
+    if (!node || node.id === this.from || node.id === this.cameFrom()) return;
     if (!this.targets.has(node.id)) return;
-    if (!setWire(this.getState(), this.player, this.from, node.id)) return;
 
-    this.came = this.from;
+    this.chain.push([this.from, node.id]);
     this.aimFrom(node.id);
     this.onUiChange();
+  }
+
+  /** The node the chain came from, so sliding back does not undo it. */
+  private cameFrom(): number | null {
+    return this.chain[this.chain.length - 1]?.[0] ?? null;
   }
 
   /**
@@ -370,14 +375,31 @@ export class PointerControls {
 
   /** Lets a drag go over a node, or over nothing, which costs nothing. */
   private finishDrag(target: GameNode | null, fraction: number): void {
-    if (this.from === null || !target || target.id === this.from) return;
+    if (this.from === null) return;
     const state = this.getState();
 
     if (this.wiring) {
-      setWire(state, this.player, this.from, target.id);
+      /*
+       * Everything the drag crossed, laid now that it has been let go.
+       *
+       * Nothing is committed while the button is still down: a drag that
+       * built what it was passing over reported success before the player had
+       * finished asking for it, and a drag called off halfway left half a
+       * chain behind.
+       *
+       * The promised chain is laid before anything is asked about where the
+       * button came up — releasing on the last node you crossed is the
+       * ordinary way to end a chain, and testing the release first threw the
+       * whole chain away every time somebody did that.
+       */
+      for (const [fromId, toId] of this.chain) setWire(state, this.player, fromId, toId);
+      if (target && target.id !== this.from) {
+        setWire(state, this.player, this.from, target.id);
+      }
       return;
     }
 
+    if (!target || target.id === this.from) return;
     sendSquad(state, this.player, this.from, target.id, fraction);
     this.select(null);
   }
@@ -385,7 +407,7 @@ export class PointerControls {
   private clear(): void {
     this.dragging = null;
     this.wiring = false;
-    this.came = null;
+    this.chain = [];
     this.from = null;
     this.cursor = null;
     this.pressedAt = null;

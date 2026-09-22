@@ -14,7 +14,7 @@ export function step(state: GameState, dt: number): void {
   if (state.winner !== null) return;
 
   state.time += dt;
-  applyGrowth(state.nodes, dt);
+  applyGrowth(state.nodes, dt, state.growth ?? 1);
   flushWires(state);
   // After the wires, so the hubs share out against a board whose dead wires
   // have already been dropped; before the squads move, so a parcel that

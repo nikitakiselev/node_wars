@@ -24,6 +24,14 @@ export interface DragHint {
   selected: number | null;
   /** True while the drag in progress is laying a supply wire. */
   wiring: boolean;
+  /**
+   * Wires the drag has promised but not yet laid, as pairs of nodes.
+   *
+   * A drag that crosses several nodes promises a chain, and nothing is real
+   * until the button comes up — so the promise has to be visible, or the
+   * player is drawing a line the game is not showing them.
+   */
+  chain: readonly (readonly [number, number])[];
 }
 
 const EMPTY_DRAG: DragHint = {
@@ -32,6 +40,7 @@ const EMPTY_DRAG: DragHint = {
   targets: new Set(),
   selected: null,
   wiring: false,
+  chain: [],
 };
 
 interface NodeView {
@@ -105,6 +114,8 @@ export class GameRenderer {
   private readonly flashes: Flash[] = [];
   private lastOwners: number[] = [];
   private homeNode: number | null = null;
+  private pointedAt: readonly number[] = [];
+  private pointerGesture: PointerGesture | null = null;
 
   constructor(
     private readonly app: Application,
@@ -299,6 +310,18 @@ export class GameRenderer {
    */
   markHome(nodeId: number | null): void {
     this.homeNode = nodeId;
+  }
+
+  /**
+   * Rings the nodes a tutorial step is about, and shows the movement it asks
+   * for.
+   *
+   * Unlike the home beacon this does not fade: it is an instruction, and an
+   * instruction has to stay legible until it has been carried out.
+   */
+  pointAt(nodeIds: readonly number[], gesture: PointerGesture | null = null): void {
+    this.pointedAt = nodeIds;
+    this.pointerGesture = gesture;
   }
 
   /**
@@ -655,6 +678,20 @@ export class GameRenderer {
   private drawLiveEdges(state: GameState, drag: DragHint): void {
     this.liveEdgeLayer.clear();
 
+    // What the drag has promised so far, drawn the same as the stretch under
+    // the cursor: one movement, one look, however many nodes it has crossed.
+    // Guarded, because the hint comes from outside the renderer: a missing
+    // field should not be the difference between a game and a crash screen.
+    for (const [fromId, toId] of drag.chain ?? []) {
+      const from = state.nodes[fromId];
+      const to = state.nodes[toId];
+      if (!from || !to) continue;
+      this.liveEdgeLayer
+        .moveTo(from.x, from.y)
+        .lineTo(to.x, to.y)
+        .stroke({ width: 3, color: factionOf(from.owner).glow, alpha: 0.8 });
+    }
+
     if (drag.from !== null) {
       const source = state.nodes[drag.from];
       if (source) {
@@ -687,8 +724,70 @@ export class GameRenderer {
    * a match, then gone. Driven by simulated time, so it holds still as a
    * target marker while the board is paused behind the setup dialog.
    */
+  /**
+   * A ring on each node a step is about, and a hand doing what it asks.
+   *
+   * Unlike the home beacon it never fades out: a beacon says where you are
+   * and then gets out of the way, while this says where to act and has to
+   * last until the acting is done. And a ring alone only says which circle —
+   * so a marker travels the drag, or knocks on the spot, because the one
+   * thing that cannot be explained in words to somebody who has not played is
+   * what the movement feels like.
+   */
+  private drawPointers(state: GameState, time: number): void {
+    for (const id of this.pointedAt) {
+      const node = state.nodes[id];
+      if (!node) continue;
+
+      const phase = (time / BEACON_PERIOD) % 1;
+      this.beaconLayer
+        .circle(node.x, node.y, node.radius * (1.2 + phase * 1.1))
+        .stroke({ width: 3 * (1 - phase), color: COLORS.foam, alpha: 0.8 * (1 - phase) });
+    }
+
+    if (this.pointedAt.length === 0 || this.pointerGesture === null) return;
+    const from = state.nodes[this.pointedAt[0]!];
+    if (!from) return;
+
+    // A cycle with a rest in it: the hand arrives, waits to be understood,
+    // and starts again rather than sliding round for ever. With more than one
+    // place to go it takes the next one each time round, because a step that
+    // asks for three wires and shows one is a step that will get one.
+    const beat = (time % GESTURE_PERIOD) / GESTURE_PERIOD;
+    const targets = this.pointedAt.length - 1;
+    const turn = targets > 0 ? Math.floor(time / GESTURE_PERIOD) % targets : 0;
+    const to =
+      this.pointerGesture === 'drag' ? state.nodes[this.pointedAt[1 + turn]!] : undefined;
+    const travel = Math.min(1, beat / GESTURE_STROKE);
+
+    if (to) {
+      this.beaconLayer
+        .moveTo(from.x, from.y)
+        .lineTo(to.x, to.y)
+        .stroke({ width: 1.5, color: COLORS.foam, alpha: 0.2 });
+    }
+
+    // Eased, because a hand does not move at a constant speed and a marker
+    // that does reads as a machine rather than as somebody showing you.
+    const eased = travel * travel * (3 - 2 * travel);
+    const at = to
+      ? { x: from.x + (to.x - from.x) * eased, y: from.y + (to.y - from.y) * eased }
+      : from;
+
+    const fade = beat > GESTURE_STROKE ? 1 - (beat - GESTURE_STROKE) / (1 - GESTURE_STROKE) : 1;
+    const knock = to ? 0 : Math.max(0, 1 - travel * 2);
+
+    this.beaconLayer
+      .circle(at.x, at.y, GESTURE_MARK + knock * 6)
+      .fill({ color: COLORS.foam, alpha: 0.75 * fade });
+    this.beaconLayer
+      .circle(at.x, at.y, GESTURE_MARK + 6 + knock * 10)
+      .stroke({ width: 2, color: COLORS.foam, alpha: 0.4 * fade });
+  }
+
   private drawBeacon(state: GameState, time: number): void {
     this.beaconLayer.clear();
+    this.drawPointers(state, time);
     if (this.homeNode === null || time >= BEACON_SECONDS) return;
 
     const node = state.nodes[this.homeNode];
@@ -789,6 +888,15 @@ const DASH_SPEED = 26;
 /** How long the opening beacon stays up, in simulated seconds. */
 const BEACON_SECONDS = 7;
 /** Seconds for one ring to travel from the node to its widest. */
+/** What a tutorial step is asking the hand to do. */
+export type PointerGesture = 'drag' | 'press';
+
+/** One run of the shown gesture, and the share of it spent moving. */
+const GESTURE_PERIOD = 2.4;
+const GESTURE_STROKE = 0.55;
+/** The hand itself, in world units. */
+const GESTURE_MARK = 7;
+
 const BEACON_PERIOD = 1.6;
 const BEACON_RINGS = 3;
 

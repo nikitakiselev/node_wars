@@ -30,6 +30,7 @@ import {
 import { standingsFor } from '../core/standings';
 import { kindBadge } from './kind-marks';
 import { outputNames } from './outputs';
+import { TUTORIAL_STEPS, nextStep, taught } from './tutorial';
 import { SEND_MODES, type SendMode } from '../input/fractions';
 import { PointerControls } from '../input/pointer';
 import { MAX_ZOOM } from '../render/camera';
@@ -164,6 +165,12 @@ const hud = {
   dim: document.querySelector<HTMLElement>('[data-dim]')!,
   menu: document.querySelector<HTMLElement>('.menu')!,
   fps: document.querySelector<HTMLElement>('[data-fps]')!,
+  coach: document.querySelector<HTMLElement>('[data-coach]')!,
+  coachSay: document.querySelector<HTMLElement>('[data-coach-say]')!,
+  coachCount: document.querySelector<HTMLElement>('[data-coach-count]')!,
+  coachNext: document.querySelector<HTMLButtonElement>('[data-coach-next]')!,
+  coachHint: document.querySelector<HTMLElement>('[data-coach-hint]')!,
+  spot: document.querySelector<HTMLElement>('[data-spot]')!,
   actionsEmpty: document.querySelector<HTMLElement>('[data-actions-empty]')!,
   bar: document.querySelector<HTMLElement>('[data-bar]')!,
   actions: document.querySelector<HTMLElement>('.actions')!,
@@ -171,6 +178,56 @@ const hud = {
   pause: document.querySelector<HTMLElement>('.pause')!,
   cutWire: document.querySelector<HTMLButtonElement>('[data-cut-wire]')!,
 };
+
+/*
+ * Everything the painters read, declared before any of them can run.
+ *
+ * Not tidiness. `fitBoard` paints the overlays before the first frame is
+ * drawn, so a `const` written further down the file — next to the function
+ * that uses it, where it reads best — is in its dead zone when that painter
+ * reaches it, and the game opens on a crash screen. This has now happened
+ * three times, to `lastHole`, `lastStep` and a pair of paddings. Anything a
+ * paint function touches goes here.
+ */
+
+function text(words: string): Node {
+  return document.createTextNode(words);
+}
+
+/**
+ * How long the tutorial says "done" before it asks for the next thing.
+ *
+ * A step that closes the moment it is satisfied and immediately asks for
+ * something else reads as the words changing under your hand, not as having
+ * got it right. A beat of nothing but "готово" is what turns one into the
+ * other.
+ */
+const PRAISE_MS = 1000;
+
+/** Room between the tutorial's box and the words hanging off it. */
+const CALLOUT_GAP = 14;
+/** Breathing room between that box and what it is drawn around. */
+const FRAME_PAD = 14;
+
+/**
+ * Where the tutorial has got to, and what was last written to the strip.
+ *
+ * Two numbers rather than one, because a reading step is passed by pressing a
+ * button and a doing step by the board changing: `taughtAt` is how far the
+ * player has walked, `lastStep` only stops the same words being written to
+ * the DOM sixty times a second.
+ *
+ * Up here with the rest of the state for the same reason `lastHole` is: the
+ * first frame is drawn before the bottom of this file has run, and a `let`
+ * further down is in its dead zone when it gets there.
+ */
+let taughtAt = 0;
+let lastStep = -1;
+/** Until when the "done" card is up, and what it is congratulating. */
+let praiseUntil = 0;
+let praiseFrame: readonly number[] | 'board' | null = null;
+/** Where the box last sat, so it is written only when it has actually moved. */
+let lastBox: { x: number; y: number; radius: number } | null = null;
 
 /**
  * Where the clear circle in the dimming layer was last put, or null when the
@@ -576,7 +633,10 @@ function registerWorker(): void {
 function openStart(): void {
   const saved = loadSave(window.localStorage);
   if (!saved) {
-    openSettings();
+    // Nothing saved and nothing learned: the first thing a new player should
+    // meet is the game, not a form asking how large they would like it.
+    if (!tutorialDone()) startTutorial();
+    else openSettings();
     return;
   }
 
@@ -648,6 +708,245 @@ function settingsFromForm(seed: number): MatchSettings {
 const SAVE_EVERY = 2000;
 let lastSaved = 0;
 
+/*
+ * The scripted first match.
+ *
+ * A real board with the rules fully in force and one thing taken away: the
+ * opponent never moves. The step the player is on is read off the board every
+ * frame rather than counted, so doing something early is never asked for
+ * again and nothing has to be told when an order succeeds.
+ */
+const TUTORIAL_KEY = 'node-wars/taught';
+
+function tutorialDone(): boolean {
+  try {
+    return window.localStorage.getItem(TUTORIAL_KEY) === 'yes';
+  } catch {
+    // Private browsing refuses storage; offering the lesson again is the
+    // harmless way to be wrong.
+    return false;
+  }
+}
+
+function rememberTaught(): void {
+  try {
+    window.localStorage.setItem(TUTORIAL_KEY, 'yes');
+  } catch {
+    // As above.
+  }
+}
+
+function startTutorial(): void {
+  // Shown once is shown: whether it is finished or walked away from, the game
+  // does not open on it again. The setup dialog keeps a way back to it.
+  rememberTaught();
+  if (dialog.open) dialog.close('tutorial');
+  showMatch(new Match({ ...defaultSettings(), seed: 0, aiCount: 1, tutorial: true }));
+  started = true;
+  paused = false;
+  updateRunning();
+}
+
+/**
+ * Writes the step the player is on, and rings the nodes it is about.
+ *
+ * Called on the frame, so it compares before it writes: the text is the same
+ * sixty times a second and the one thing this must not cost is a DOM write
+ * per frame.
+ */
+function paintCoach(): void {
+  if (!match.settings.tutorial) {
+    if (lastStep !== -1) {
+      lastStep = -1;
+      renderer.pointAt([]);
+    }
+    hud.coach.hidden = true;
+    hud.spot.hidden = true;
+    return;
+  }
+
+  const at = nextStep(match.state, taughtAt);
+  if (at !== taughtAt) {
+    // A step the player did, rather than read: worth saying so before moving
+    // the words on. The box stays where it was while that is being said.
+    if (TUTORIAL_STEPS[taughtAt]?.kind === 'do') {
+      praiseUntil = performance.now() + PRAISE_MS;
+      praiseFrame = TUTORIAL_STEPS[taughtAt]!.frame;
+      writePraise();
+    }
+    taughtAt = at;
+    lastBox = null;
+  }
+
+  hud.coach.hidden = false;
+
+  if (performance.now() < praiseUntil) {
+    placeCoach(praiseFrame);
+    return;
+  }
+
+  if (praiseFrame !== null) {
+    praiseFrame = null;
+    lastStep = -1;
+    lastBox = null;
+    hud.coach.classList.remove('coach--done');
+  }
+
+  if (taughtAt !== lastStep) {
+    lastStep = taughtAt;
+    writeCoach();
+  }
+
+  placeCoach(taught(taughtAt) ? null : TUTORIAL_STEPS[taughtAt]!.frame);
+}
+
+/** The beat between doing a thing and being asked for the next one. */
+function writePraise(): void {
+  renderer.pointAt([]);
+  hud.coach.classList.add('coach--done');
+  hud.coachSay.textContent = 'Готово.';
+  hud.coachHint.hidden = true;
+  hud.coachNext.hidden = true;
+}
+
+/** The words, rewritten only when the step under them changes. */
+function writeCoach(): void {
+  if (taught(taughtAt)) {
+    renderer.pointAt([]);
+    hud.coachSay.textContent = 'Это вся игра. Дальше — своя партия: соперник в ней отвечает.';
+    hud.coachCount.textContent = 'Готово';
+    hud.coachHint.hidden = true;
+    hud.coachNext.textContent = 'Начать партию';
+    hud.coachNext.hidden = false;
+    return;
+  }
+
+  hud.coachNext.textContent = 'Далее';
+
+  const step = TUTORIAL_STEPS[taughtAt]!;
+  hud.coachSay.textContent = step.say(touchPlayer);
+  hud.coachCount.textContent = `${taughtAt + 1} из ${TUTORIAL_STEPS.length}`;
+  // Only a step with nothing to do waits on a button; the rest watch the board.
+  hud.coachNext.hidden = step.kind !== 'read';
+  renderer.pointAt(step.at, step.kind === 'do' ? step.gesture : null);
+
+  // A finger has no buttons to tell apart, so it is told nothing.
+  const shows = !touchPlayer && step.kind === 'do';
+  hud.coachHint.hidden = !shows;
+  if (!shows) return;
+
+  hud.coachHint.replaceChildren(
+    mouseMark(step.button),
+    text(step.button === 'left' ? 'Левой кнопкой' : 'Правой кнопкой'),
+  );
+}
+
+/**
+ * Puts the box round what the step is about and hangs the callout off it.
+ *
+ * Run on the frame, because the board can be panned and zoomed under it, and
+ * written only when something has moved a pixel: this is a layout read and a
+ * style write, which are the two things a frame cannot afford to do for
+ * nothing.
+ */
+function placeCoach(frame: readonly number[] | 'board' | null): void {
+  const box = frame === null ? null : frameOf(frame);
+
+  if (!box) {
+    hud.spot.hidden = true;
+    hud.coach.style.left = `${window.innerWidth / 2}px`;
+    hud.coach.style.top = `${window.innerHeight * 0.62}px`;
+    hud.coach.style.transform = 'translate(-50%, -50%)';
+    hud.coach.classList.remove('coach--above', 'coach--below');
+    return;
+  }
+
+  if (!moved(lastBox, { x: box.left, y: box.top, radius: box.width + box.height })) return;
+  lastBox = { x: box.left, y: box.top, radius: box.width + box.height };
+
+  hud.spot.hidden = false;
+  hud.spot.style.left = `${box.left}px`;
+  hud.spot.style.top = `${box.top}px`;
+  hud.spot.style.width = `${box.width}px`;
+  hud.spot.style.height = `${box.height}px`;
+
+  const card = hud.coach.getBoundingClientRect();
+  const middle = box.left + box.width / 2;
+  // Below the box where there is room for it, above where there is not: the
+  // words must never cover the thing they are pointing at.
+  const below = box.top + box.height + CALLOUT_GAP + card.height < window.innerHeight - 16;
+  const top = below ? box.top + box.height + CALLOUT_GAP : box.top - CALLOUT_GAP - card.height;
+  const left = Math.min(
+    Math.max(middle - card.width / 2, 16),
+    window.innerWidth - card.width - 16,
+  );
+
+  hud.coach.style.transform = 'none';
+  hud.coach.style.left = `${left}px`;
+  hud.coach.style.top = `${Math.max(16, top)}px`;
+  hud.coach.classList.toggle('coach--below', below);
+  hud.coach.classList.toggle('coach--above', !below);
+  // The arrow points at the middle of the box, wherever the card had to sit.
+  hud.coach.style.setProperty('--arrow', `${Math.min(Math.max(middle - left, 20), card.width - 20)}px`);
+}
+
+/** The box a step wants drawn, in screen pixels, or null when it wants none. */
+function frameOf(frame: readonly number[] | 'board'): DOMRectReadOnly | null {
+  const points: { x: number; y: number; r: number }[] = [];
+
+  if (frame === 'board') {
+    // What is on the board, not the world it sits in. The world is square so
+    // that a phone on its end needs no second layout; the nodes occupy a wide
+    // band inside it, and a box round the empty corners says nothing.
+    for (const node of match.state.nodes) {
+      points.push({ x: node.x, y: node.y, r: node.radius });
+    }
+  } else {
+    for (const id of frame) {
+      const node = match.state.nodes[id];
+      if (node) points.push({ x: node.x, y: node.y, r: node.radius });
+    }
+  }
+  if (points.length === 0) return null;
+
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+
+  for (const point of points) {
+    const at = renderer.toScreen(point.x, point.y);
+    const spread = point.r * (renderer.toScreen(point.x + 1, point.y).x - at.x);
+    left = Math.min(left, at.x - spread);
+    top = Math.min(top, at.y - spread);
+    right = Math.max(right, at.x + spread);
+    bottom = Math.max(bottom, at.y + spread);
+  }
+
+  const pad = FRAME_PAD;
+  return new DOMRectReadOnly(
+    left - pad,
+    top - pad,
+    right - left + pad * 2,
+    bottom - top + pad * 2,
+  );
+}
+
+hud.coachNext.addEventListener('click', () => {
+  // On the last card the same button is the way out: there is nothing left to
+  // advance to, and a lesson should end by handing over a real match.
+  if (taught(taughtAt)) {
+    openSettings();
+    return;
+  }
+
+  taughtAt++;
+  lastBox = null;
+  paintOverlays();
+  renderer.draw(match.state, match.alpha, STEP_SECONDS, controls.hint);
+  app.render();
+});
+
 function openSettings(): void {
   resumed = match;
   // The board behind the dialog is the board you are about to play, so every
@@ -689,8 +988,15 @@ resumeDialog.addEventListener('close', () => {
 });
 
 dialog.addEventListener('close', () => {
-  // Dismissing the dialog puts the match that was running back on screen; the
-  // preview was only ever a preview.
+  /*
+   * A dialog fires this *after* the call that closed it has returned, which
+   * is why leaving for the tutorial has to say so. Closing with no answer
+   * means "never mind", and never mind puts the match that was running back
+   * on screen — which quietly threw away the lesson that had just been set
+   * up, and looked like the Обучение button doing nothing at all.
+   */
+  if (dialog.returnValue === 'tutorial') return;
+
   if (dialog.returnValue === 'start') {
     started = true;
   } else {
@@ -710,6 +1016,10 @@ for (const button of document.querySelectorAll('[data-open-settings]')) {
 /** Puts a match on screen and paints one frame of it. */
 function showMatch(next: Match): void {
   match = next;
+  // A new board is a new lesson or none at all; whichever, the old step is
+  // not about anything that is on the screen now.
+  taughtAt = 0;
+  lastStep = -1;
   renderer.setWorld(match.world.width, match.world.height);
   renderer.build(match.state);
   renderer.markHome(match.state.nodes.find((node) => node.owner === HUMAN)?.id ?? null);
@@ -745,6 +1055,8 @@ function paintOverlays(): void {
     hud.actions.hidden = true;
     hud.cutWire.hidden = true;
     zoomRail.hidden = true;
+    hud.coach.hidden = true;
+    hud.spot.hidden = true;
     paintDim(null);
     return;
   }
@@ -752,6 +1064,7 @@ function paintOverlays(): void {
   paintActions();
   paintWireControl();
   paintZoom();
+  paintCoach();
   // The panel stays open over a running match, so its readings move with it.
   if (shareDialog.open) paintShare();
 }
@@ -885,6 +1198,31 @@ function gearMark(): SVGElement {
 const TIP = 11;
 const ROOT = 8.1;
 const HOLE = 3.5;
+
+/**
+ * A mouse with one of its buttons lit.
+ *
+ * The body is an outline and the button a shape, so at eighteen pixels the
+ * lit half is the only thing with weight in it — which is the whole message.
+ */
+function mouseMark(button: 'left' | 'right'): SVGElement {
+  return svgMark((svg) => {
+    const lit = document.createElementNS(SVG, 'path');
+    lit.setAttribute(
+      'd',
+      button === 'left'
+        ? 'M12 2.5H9.5A3.5 3.5 0 0 0 6 6v4.5h6Z'
+        : 'M12 2.5h2.5A3.5 3.5 0 0 1 18 6v4.5h-6Z',
+    );
+    lit.setAttribute('class', 'is-pressed');
+    svg.appendChild(lit);
+
+    // The shell, drawn after, so its edge sits over the lit half.
+    line(svg, 'M12 2.5h2.5A3.5 3.5 0 0 1 18 6v11a4.5 4.5 0 0 1-12 0V6a3.5 3.5 0 0 1 3.5-3.5Z');
+    line(svg, 'M6 10.5h12');
+    line(svg, 'M12 2.5v8');
+  });
+}
 
 /** Reset: three quarters of a circle turning back on itself, and a head. */
 function resetMark(): SVGElement {
@@ -1271,6 +1609,16 @@ function saveNow(): void {
   // started. Writing it down — and leaving the page does write it down —
   // would throw away the match the player actually left in storage.
   if (!started || covered()) return;
+
+  /*
+   * A lesson is not a match and is never written down.
+   *
+   * Saved, it came back as "a saved match was found", offering to continue
+   * something that is not a game — and it did that by writing over whatever
+   * the player had actually left in storage. An unfinished lesson starts
+   * again from the top instead, which is what an unfinished lesson should do.
+   */
+  if (match.settings.tutorial) return;
 
   if (match.state.winner !== null || isEliminated(match.state, HUMAN)) {
     clearSave(window.localStorage);

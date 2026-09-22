@@ -189,33 +189,6 @@ button,
   vertical-align: 1px;
 }
 
-.footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
-  font-size: 13px;
-  color: #6f868c;
-}
-
-.hint {
-  margin: 0;
-}
-
-.hint + .hint {
-  margin-top: 4px;
-}
-
-.hint kbd {
-  padding: 1px 6px;
-  border: 1px solid #1a4049;
-  border-radius: 5px;
-  background: rgba(7, 26, 32, 0.8);
-  color: #9fb4b8;
-  font: inherit;
-  font-size: 12px;
-}
-
 .verdict {
   position: fixed;
   inset: 0;
@@ -265,11 +238,6 @@ button,
   .readout {
     font-size: 12px;
   }
-
-  .footer {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }
 
 /*
@@ -305,6 +273,171 @@ button,
 .scores {
   flex: 1;
   min-width: 0;
+}
+
+/*
+ * The tutorial's box, and the words hanging off it.
+ *
+ * A sentence about "your nodes" is no use until the player knows which
+ * circles those are, and pointing with words — "the big one on the left" — is
+ * how a tutorial ages badly. The box says which, and the callout says what,
+ * with an arrow joining the two so there is no doubt they are about each
+ * other.
+ *
+ * Both are laid over the board and neither takes a pointer event except the
+ * callout's own buttons: the board underneath stays playable, which matters
+ * from the step where the player is asked to play.
+ */
+.spot {
+  position: fixed;
+  border: 2px solid var(--jade);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 3px rgba(63, 214, 193, 0.12),
+    0 0 28px rgba(63, 214, 193, 0.22);
+  pointer-events: none;
+  animation: pop-in 220ms cubic-bezier(0.2, 0.9, 0.25, 1.25) backwards;
+}
+
+.spot[hidden] {
+  display: none;
+}
+
+.coach {
+  position: fixed;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid #2b6b78;
+  border-radius: 14px;
+  background: rgba(7, 26, 32, 0.96);
+  box-shadow: 0 16px 40px rgba(2, 12, 18, 0.6);
+  pointer-events: auto;
+  animation: pop-in 220ms cubic-bezier(0.2, 0.9, 0.25, 1.25) backwards;
+}
+
+.coach[hidden] {
+  display: none;
+}
+
+/* The arrow, pointing back at the box the words are about. */
+.coach::after {
+  content: '';
+  position: absolute;
+  left: var(--arrow, 50%);
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%) rotate(45deg);
+  background: rgba(7, 26, 32, 0.96);
+  border: 1px solid #2b6b78;
+}
+
+.coach--below::after {
+  top: -7px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.coach--above::after {
+  bottom: -7px;
+  border-left: 0;
+  border-top: 0;
+}
+
+.coach p {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+/*
+ * Which button, drawn rather than described.
+ *
+ * Which of the two gives which order is the one thing about this game a
+ * newcomer cannot guess, and a sentence that opens "Правой кнопкой" is read
+ * after the hand has already reached for the left one. The picture is read
+ * first because it is a picture.
+ */
+.coach__hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #9fb4b8;
+}
+
+.coach__hint[hidden] {
+  display: none;
+}
+
+.coach__hint svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: #9fb4b8;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.coach__hint svg .is-pressed {
+  fill: var(--jade);
+  stroke: var(--jade);
+}
+
+.coach__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.coach__count {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #6f868c;
+}
+
+.coach button {
+  border: 1px solid #2b6b78;
+  border-radius: 999px;
+  padding: 6px 16px;
+  background: transparent;
+  color: #9fb4b8;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Done: the card says so with its colour before it says anything else. */
+.coach--done {
+  border-color: var(--jade);
+  box-shadow:
+    0 0 0 3px rgba(63, 214, 193, 0.14),
+    0 16px 40px rgba(2, 12, 18, 0.6);
+}
+
+.coach--done::after {
+  border-color: var(--jade);
+}
+
+.coach--done p {
+  color: var(--jade);
+  font-weight: 700;
+}
+
+/* The one step that waits on a button gets the filled one. */
+.coach .coach__on {
+  border-color: var(--foam);
+  background: var(--foam);
+  color: var(--water-deep);
+}
+
+.coach button[hidden] {
+  display: none;
 }
 
 /* One row: what a drag means. A desktop has modifier keys instead, so the
@@ -429,27 +562,11 @@ button,
   display: flex;
 }
 
-/* Everything it held is either hidden here or has moved into the menu. */
-:root.touch .footer {
-  display: none;
-}
-
 :root.touch .modes .choice span {
   min-width: 52px;
   padding: 14px 13px;
   font-size: 15px;
   text-align: center;
-}
-
-/* The keys these describe are not on this device. */
-:root.touch .hint {
-  display: none;
-}
-
-:root.touch .footer {
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
 }
 
 :root.touch .bottom {
@@ -665,6 +782,8 @@ button,
   }
 
   .actions button,
+  .coach,
+  .spot,
   .pause p,
   .pause button,
   .pause [data-seed] {
@@ -1400,12 +1519,14 @@ button,
   .setup .primary:hover,
   .resume .primary:hover,
   .choice input:checked + span:hover,
+  .coach .coach__on:hover,
   .crash__again:hover {
     transform: scale(1.04);
     box-shadow: 0 0 0 4px rgba(230, 242, 240, 0.18);
   }
 
   .menu:hover,
+  .coach button:not(.coach__on):hover,
   .pause .pause__rules:hover,
   .setup__actions button:not(.primary):hover {
     transform: scale(1.04);
@@ -1458,6 +1579,7 @@ button,
 /* Outlined: pressed by filling faintly. */
 .controls button:not(.is-chosen):active,
 .menu:active,
+.coach button:active,
 .pause .pause__rules:active,
 .setup__actions button:not(.primary):active,
 .choice span:active {

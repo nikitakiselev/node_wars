@@ -67,18 +67,6 @@
           <div class="modes" data-choices="sendMode"></div>
         </div>
 
-        <div class="footer">
-          <div>
-            <p class="hint">
-              Тяните от своего узла к соседнему: всё, <kbd>Shift</kbd> — половина,
-              <kbd>Alt</kbd> — четверть.
-            </p>
-            <p class="hint">
-              Правой кнопкой — провод снабжения между своими узлами: наполнившись,
-              узел сам шлёт половину дальше.
-            </p>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -104,6 +92,17 @@
     </dialog>
 
     <div class="dim" data-dim></div>
+
+    <div class="spot" data-spot hidden></div>
+
+    <div class="coach" data-coach hidden>
+      <p data-coach-say></p>
+      <span class="coach__hint" data-coach-hint hidden></span>
+      <div class="coach__foot">
+        <span class="coach__count" data-coach-count></span>
+        <button type="button" class="coach__on" data-coach-next hidden>Далее</button>
+      </div>
+    </div>
 
     <div class="zoom" data-zoom hidden>
       <span class="zoom__end">+</span>
@@ -192,6 +191,7 @@
 
         <div class="setup__actions">
           <button type="button" data-help>Правила</button>
+          <button type="button" data-tutorial>Обучение</button>
           <button type="submit" value="start" class="primary">Начать</button>
         </div>
       </form>

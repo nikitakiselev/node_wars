@@ -312,9 +312,18 @@ Zoom has a rail down the right edge as well as the pinch (`.zoom` in
 same zoom under the thumb of the hand already holding the phone. It reads
 `renderer.zoom` rather than keeping a number of its own, so pinching moves its
 thumb too — one zoom, shown twice. Anything that paints it belongs in
-`paintOverlays`, and **anything the first frame touches has to be declared
-before `openStart()` runs**: the consts are not hoisted, and a rail declared
-below it throws on the opening frame.
+`paintOverlays`.
+
+**Everything a paint function reads is declared in one block at the top of
+`main.ts`, and that is not tidiness.** `fitBoard` paints the overlays before
+the first frame is drawn, so a `let` or `const` written further down the file
+— beside the function that uses it, where it reads best — is in its temporal
+dead zone when the painter reaches it, and the game opens on the crash screen
+instead of the board. This has now cost four separate occasions: the zoom
+rail, the dimming layer's `lastHole`, the tutorial's `lastStep`, and a pair of
+paddings. The rule is not "declare it before `openStart()` runs" — that is
+true, and it was not enough. It is: **if a paint function touches it, it goes
+in that block.**
 
 `help.ts` takes the same argument. Telling a player to right-click on a screen
 with no mouse is the same kind of lie as a stale number, so the rules panel
@@ -474,6 +483,60 @@ having a squad in the air. Requiring someone to hold every node was a bug — a
 player could be wiped out while neutral nodes remained and the game would say
 nothing at all. `isEliminated` in `simulation.ts` is also what the HUD uses to
 tell a human they are out while bots fight on among themselves.
+
+## The tutorial
+
+`app/tutorial.ts` is a scripted first match: a real board with the rules fully
+in force and exactly one thing taken away — the opponent never moves.
+
+**The board is written out, never generated.** Every step points at a node by
+its number, and map generation is tuned often; a board pinned to a seed would
+be reshuffled by the next change to island sizes or the keep ratio, and the
+script would go on pointing confidently at the wrong circles. It is square, so
+standing a phone on its end needs no second layout, and it must always carry
+an opponent's node — with none, `findWinner` ends the match before the first
+step is read.
+
+**A step is a condition on the state, not a page to click through.** `stepOf`
+returns the first unfinished one, so doing something before being asked is
+never asked for again, and nothing has to be told when an order succeeds.
+That also makes the whole script testable without a browser, which is what
+`tutorial.test.ts` does.
+
+**A ring says which circle and a gesture says what to do with it.** The ring
+alone was not enough — it marks a node and leaves a new player wondering what
+to do to it — so each step also carries `drag` or `press`, and the renderer
+runs a marker along the drag or knocks it on the spot.
+
+**The lesson runs wound up.** `TUTORIAL_PACE` earns six times as fast and the
+wire fires at half full rather than full, because the last steps build a hub
+and wire it up and then nothing happens for the best part of a minute while
+the node feeding it inches towards the mark. A demonstration nobody stays for
+demonstrates nothing. Neither number is a new rule — a match already carries
+both, and every real one carries 1 and "full".
+
+**Nothing the drag promises is real until it is let go.** A wiring drag
+collects the pairs it crosses and lays them all on release, which is why
+`DragHint` carries a `chain` for the renderer to show. Building as it went
+reported success before the player had finished asking, and a drag called off
+halfway left half a chain behind. The promised chain is also laid *before*
+anything is asked about where the button came up: releasing on the last node
+you crossed is the ordinary way to end a chain, and testing the release first
+threw the whole thing away.
+
+**A step that closes says so, and waits a beat.** `PRAISE_MS` holds a "готово"
+card for a second with the box still on what was just done. Closing silently
+and immediately asking for the next thing reads as the words changing under
+your hand rather than as having got it right.
+
+**A lesson is never written to the save.** Saved, it came back as "a saved
+match was found", offering to continue something that is not a game, and it
+wrote over whatever the player had actually left there. An unfinished lesson
+starts again from the top.
+
+`HUMAN` lives in `core/state.ts` beside `NEUTRAL`, not in `match.ts`, because
+the tutorial board needs it and importing it from there closed a circle —
+which showed up as a board full of `undefined` owners, not as an error.
 
 ## The rules panel
 

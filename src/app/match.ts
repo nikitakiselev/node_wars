@@ -2,7 +2,7 @@ import { createAi, type Ai, type Difficulty } from '../ai/ai';
 import { generateMap } from '../core/mapgen';
 import { createRng } from '../core/rng';
 import { step } from '../core/simulation';
-import type { GameState, OwnerId } from '../core/state';
+import type { GameState } from '../core/state';
 import {
   DEFAULT_WIRE_FILL,
   DEFAULT_WIRE_SHARE,
@@ -13,6 +13,13 @@ import {
 } from '../core/wires';
 import { MAX_PLAYERS } from '../render/theme';
 import { FixedTimestep } from './loop';
+import {
+  TUTORIAL_PACE,
+  TUTORIAL_WIRE_FILL,
+  TUTORIAL_WIRE_SHARE,
+  TUTORIAL_WORLD,
+  tutorialBoard,
+} from './tutorial';
 
 /** The middle board. Kept as the reference the renderer and tests work from. */
 export const WORLD = { width: 1600, height: 1000 } as const;
@@ -28,7 +35,9 @@ export const NODE_SPACING = 70;
 /** Simulation rate. Fixed, so a match is reproducible from its seed. */
 export const STEP_SECONDS = 1 / 30;
 
-export const HUMAN: OwnerId = 0;
+// Re-exported from where it belongs, beside NEUTRAL: the tutorial board needs
+// it and imports from here would close a circle back through this file.
+export { HUMAN } from '../core/state';
 
 /** Bots that can sit at one table; every seat needs a colour of its own. */
 export const MAX_OPPONENTS = MAX_PLAYERS - 1;
@@ -72,6 +81,11 @@ export interface MatchSettings {
   wireFill?: WireFill;
   /** How much of what it holds then goes down the wire. */
   wireShare?: WireShare;
+  /**
+   * A scripted first match: a written-out board and an opponent who never
+   * moves. Everything else — growth, combat, wires — is the real game.
+   */
+  tutorial?: boolean;
 }
 
 export function defaultSettings(): MatchSettings {
@@ -128,27 +142,34 @@ export class Match {
     const aiCount = clamp(settings.aiCount, 1, MAX_OPPONENTS);
     this.settings = { ...settings, aiCount };
 
-    const board = boardFor(settings);
+    const board = settings.tutorial ? TUTORIAL_WORLD : boardFor(settings);
     this.world = { width: board.width, height: board.height };
-    this.state = resumed ?? generateMap({
+    this.state = resumed ?? (settings.tutorial ? tutorialBoard() : generateMap({
       width: board.width,
       height: board.height,
       seed: settings.seed,
       minDistance: NODE_SPACING,
       playerCount: aiCount + 1,
       neutralGarrison: MAP_DIFFICULTIES[settings.mapDifficulty].neutralGarrison,
-    });
+    }));
 
     // The wire rule belongs to the match the way its board does, so it is
     // written into the state — which is what `step` has to go on, and what
     // travels in a save. A resumed board keeps whatever it was played by.
     if (!resumed) {
-      this.state.wireFill = WIRE_FILLS[settings.wireFill ?? DEFAULT_WIRE_FILL].fill;
-      this.state.wireShare = WIRE_SHARES[settings.wireShare ?? DEFAULT_WIRE_SHARE].share;
+      const fill = settings.tutorial ? TUTORIAL_WIRE_FILL : settings.wireFill;
+      const share = settings.tutorial ? TUTORIAL_WIRE_SHARE : settings.wireShare;
+      this.state.wireFill = WIRE_FILLS[fill ?? DEFAULT_WIRE_FILL].fill;
+      this.state.wireShare = WIRE_SHARES[share ?? DEFAULT_WIRE_SHARE].share;
+      // The lesson runs fast so its last act can be watched rather than
+      // waited out; every real match earns at the ordinary rate.
+      if (settings.tutorial) this.state.growth = TUTORIAL_PACE;
     }
 
     this.bots = [];
-    for (let player = 1; player <= aiCount; player++) {
+    // The one thing the tutorial takes away. An opponent who thinks would
+    // finish the lesson before it was read.
+    for (let player = 1; !settings.tutorial && player <= aiCount; player++) {
       this.bots.push(
         createAi(player, settings.difficulty, createRng(settings.seed * 31 + player * 7919)),
       );
