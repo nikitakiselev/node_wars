@@ -1,9 +1,11 @@
 import { effectiveAttack } from '../core/combat';
+import { CONVERSIONS, conversionsFor, convertNode } from '../core/convert';
 import { growthRateOf } from '../core/growth';
 import { auraMultiplier, defenceMultiplier, growthMultiplier } from '../core/kinds';
 import { upgradeCost } from '../core/levels';
 import { SQUAD_SPEED, sendSquad } from '../core/orders';
 import { upgradeNode } from '../core/upgrade';
+import { cutWire, setWire, wiresFrom } from '../core/wires';
 import type { Rng } from '../core/rng';
 import { NEUTRAL, type GameNode, type GameState, type OwnerId } from '../core/state';
 
@@ -146,6 +148,11 @@ export function createAi(player: OwnerId, difficulty: Difficulty, rng: Rng): Ai 
       // a bot that only spends on attacks never grows its income, and a human
       // who builds will out-earn it inside one match.
       build(state, player, config, rng);
+      // Hubs are built and then kept pointing the right way, both before the
+      // shipping they exist to save: a hub laid this decision starts carrying
+      // on the next one rather than a decision later.
+      buildHubs(state, player);
+      aimHubs(state, player);
       issue(state, player, supportOrders(config, state, player), () =>
         chooseSupport(state, player, config, rng),
       );
@@ -187,6 +194,92 @@ function build(state: GameState, player: OwnerId, config: AiConfig, rng: Rng): v
     if (!next) return;
     if (rng.next() < config.sloppiness) continue;
     upgradeNode(state, player, next.node.id);
+  }
+}
+
+/**
+ * Nodes a bot holds per balancer it is willing to build.
+ *
+ * A hub is logistics that costs no orders at all, which is exactly the pipe
+ * `NODES_PER_SUPPORT_ORDER` was measured to size. Left unlimited, two bots
+ * reinforcing through hubs hold every front for ever and the match never
+ * ends — the same failure, arrived at from the other direction. This is the
+ * knob that keeps it in hand, and it is measured by `app/match.test.ts`.
+ */
+const NODES_PER_HUB = 12;
+
+/** How far from the fighting a node has to be before it is worth hollowing out. */
+const HUB_DEPTH = 2;
+
+/**
+ * Builds rear crossroads into balancers, up to what the empire can carry.
+ *
+ * Only in the depth of the empire, and never on the border. A balancer holds
+ * nothing, so it is taken by a single point: a hub on the front line is a
+ * hole in it.
+ */
+function buildHubs(state: GameState, player: OwnerId): void {
+  const conversion = CONVERSIONS['balancer'];
+  if (!conversion) return;
+
+  let held = 0;
+  let hubs = 0;
+  for (const node of state.nodes) {
+    if (node.owner !== player) continue;
+    held++;
+    if (node.kind === 'balancer') hubs++;
+  }
+
+  if (hubs >= Math.floor(held / NODES_PER_HUB)) return;
+
+  const toFront = distanceToFront(state, player);
+  let best: GameNode | undefined;
+
+  for (const node of state.nodes) {
+    if (node.owner !== player || node.points < conversion.cost) continue;
+    if ((toFront[node.id] ?? 0) < HUB_DEPTH) continue;
+    if (!conversionsFor(state, node.id).includes('balancer')) continue;
+
+    // The busiest crossroads it has: a hub is worth more the more ways out of
+    // it there are, which is the same thing that made it eligible.
+    const ways = (state.adjacency[node.id] ?? []).length;
+    if (!best || ways > (state.adjacency[best.id] ?? []).length) best = node;
+  }
+
+  if (best) convertNode(state, player, best.id, 'balancer');
+}
+
+/**
+ * Points every hub the bot holds down the hop gradient, and only down it.
+ *
+ * A hub wired to all its neighbours would hand points back to whatever just
+ * fed it — round the same two nodes for the rest of the match. Wiring only to
+ * neighbours nearer the fighting makes it a pump rather than a valve, and it
+ * is the gradient the bot's own logistics already runs on.
+ *
+ * Redone every decision, because the front moves: a wire that pointed forward
+ * last minute can be pointing into the rear now.
+ */
+function aimHubs(state: GameState, player: OwnerId): void {
+  const toFront = distanceToFront(state, player);
+
+  for (const node of state.nodes) {
+    if (node.owner !== player || node.kind !== 'balancer') continue;
+
+    // Nothing it holds is its own, so nothing it does is worth a fair share:
+    // it sends where the need is, which is what balance means.
+    node.share = 'balance';
+
+    const depth = toFront[node.id] ?? 0;
+    const forward = (state.adjacency[node.id] ?? []).filter((id) => {
+      if (state.nodes[id]?.owner !== player) return false;
+      return (toFront[id] ?? 0) < depth;
+    });
+
+    for (const toId of wiresFrom(state, node.id)) {
+      if (!forward.includes(toId)) cutWire(state, player, node.id, toId);
+    }
+    for (const toId of forward) setWire(state, player, node.id, toId);
   }
 }
 

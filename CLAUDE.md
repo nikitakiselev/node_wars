@@ -66,8 +66,10 @@ Upgrades measurably made matches more decisive, not less — 8/10 settled versus
 
 ## Node kinds
 
-`NodeKind` is `base | fortress | farm | core`, rolled independently of size and
-never given to a starting node. A fortress turns away part of an incoming *hostile* force
+`NodeKind` is `base | fortress | farm | core | balancer`. The first four are
+rolled independently of size and never given to a starting node; a balancer is
+**built**, never dealt, which is what `CONVERSIONS` in `core/convert.ts` is
+for. A fortress turns away part of an incoming *hostile* force
 (`effectiveAttack` in `combat.ts`); reinforcing your own is never reduced. A
 farm earns faster (`growthRateOf` in `growth.ts`) but holds no more, which
 keeps node size an honest read of the cap.
@@ -87,10 +89,40 @@ and 1× at every level for a plain node. Only a finished fortress costs double t
 them through `defenceMultiplier` / `growthMultiplier` rather than hardcoding a
 constant anywhere.
 
-Adding a kind touches four places: placement in `mapgen.ts`, a row in
-`BY_LEVEL` (`core/kinds.ts`), `drawKindMark` (renderer) and the kinds table in
+A **balancer** earns nothing (growth 0× at every level) and keeps nothing:
+whatever reaches it leaves on the next step, whole, to one of the neighbours it
+is wired to — `flushBalancers` in `core/balancer.ts`, run from `step` right
+after `flushWires`. `flushWires` deliberately does not ship from one: two rules
+emptying the same node would argue about who sent what.
+
+It is the one node that is **free to take**, because an empty node is taken by
+a single point. That is the price of logistics that costs no orders, and it is
+why a hub belongs in the rear — the bot's own rule refuses to build one within
+two hops of the fighting.
+
+Two ways to share, `SHARE_MODES` in `core/balancer.ts`: round the list, or to
+whichever output has sagged furthest against its own ceiling. The second is the
+battery-balancer one — it tops up rather than splitting, and parcel after
+parcel the outputs draw level. One parcel goes whole to one output rather than
+being split across all of them: splitting converges faster and costs a squad
+and a particle stream per share.
+
+**Building a node into a kind is a table too** — `CONVERSIONS` in
+`core/convert.ts`, holding the price, the label and what a node must be. A
+balancer wants `base`, `MAX_LEVEL`, three neighbours of your own, and 90
+points; that last rule is what reads "some nodes on the board already are
+hubs" back into the game, since a dead end has nothing to share out. Going
+back to `base` is free, and only kinds somebody built can go back: a fortress
+is terrain, and demoting it would be rewriting the map.
+
+Adding a kind touches four places: placement in `mapgen.ts` — or a row in
+`CONVERSIONS` if it is built rather than dealt — a row in `BY_LEVEL`
+(`core/kinds.ts`), `drawKindMark` (renderer) and the kinds table in
 `app/help.ts`, whose test refuses a kind whose numbers are not read from the
-table the game plays by. The bot values a node from those multipliers, so it needs no
+table the game plays by. A buildable kind also needs a mark on its button
+(`CONVERSION_MARKS` in `main.ts`): a kind is a row, but a picture of one is a
+picture. `mapgen.test.ts` asserts the generator deals no kind that appears in
+`CONVERSIONS`. The bot values a node from those multipliers, so it needs no
 separate table. Kinds are shown by silhouette, never by colour — colour
 already means ownership.
 
@@ -140,6 +172,21 @@ matches, and undoing any of them brings back matches that never end:
   target must still be over its ceiling after the hit, and the attacking node
   must be full, because a node still filling up is growing into something and a
   full one's points are dead weight until spent.
+
+- **Bots build hubs, but under a limit** (`NODES_PER_HUB`, `buildHubs`). A
+  balancer is logistics that costs no orders at all — exactly the pipe
+  `NODES_PER_SUPPORT_ORDER` was measured to size — so it is capped at one per
+  twelve nodes held, and only two hops back from the fighting. Measured over
+  ten bot-vs-bot matches: all ten settle either way, average 5.0 minutes either
+  way, nodes left standing at capacity 44 without hubs and 40 with. The limit
+  turns out not to be what binds — eligibility is, since a node needs level
+  five, three neighbours of its own and 240 points — but it is the knob that
+  stops the failure the support budget already documents.
+- **A bot's hub is wired down the hop gradient and nowhere else** (`aimHubs`).
+  Wired to every neighbour it would hand points back to whatever just fed it,
+  round the same two nodes for the rest of the match. Redone every decision,
+  because the front moves and a wire that pointed forward last minute may not
+  now.
 
 Letting reinforcements stack on a node that already has one inbound was tried
 and measurably made things worse; it is deliberately refused.
@@ -288,15 +335,19 @@ actually looked at.
 
 `core/wires.ts`. A player can point one of their nodes at an adjacent node
 they also own; once the source fills up it ships half its garrison down the
-wire. `flushWires` runs inside `step`, after growth, and drops any wire whose
+wire. `state.wires[nodeId]` is a **list**, always present and often empty: an
+ordinary node is allowed one, so laying a second replaces the first, and a
+balancer is allowed one per neighbour. A wire is therefore identified by the
+pair of nodes it joins rather than by its source, which is what lets the × land
+on the right one. `flushWires` runs inside `step`, after growth, and drops any wire whose
 ends are no longer both held by one player.
 
 Wires carry but never conquer — the target must already be yours. That is the
 guardrail that keeps the game a game: with auto-attack the whole match would
 play itself from the first minute.
 
-**Bots still do not use wires, and trying it is instructive.** Giving them the
-player's own mechanism worked on every gameplay measure — the rear flowed, the
+**Bots use wires only for their hubs, and the history is instructive.** Giving
+them the player's own mechanism outright worked on every gameplay measure — the rear flowed, the
 damage doubled — and cost a third of the frame rate: the bots wired nearly
 every node they held, 58 of 60 in a measured match, and `drawWires` clears one
 shared `Graphics` and issues a separate `stroke()` for every dash of every
@@ -504,5 +555,6 @@ shell, so anything with an `if` falls apart there.
 ## Design decisions
 
 `docs/design.md` records why the rules and architecture are what they are.
-Node kinds are modelled (`NodeKind`) but only `base` exists; adding a
-higher-income kind should be a table change, not new code paths.
+Kinds are data: `BY_LEVEL` says what one is worth, `CONVERSIONS` says what it
+costs to build, and adding one should be rows in those tables rather than new
+paths through the code.

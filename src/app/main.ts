@@ -11,6 +11,7 @@ import type { GameNode, NodeKind, ShareMode } from '../core/state';
 import { upgradeNode } from '../core/upgrade';
 import { cutWire, wiresFrom } from '../core/wires';
 import { standingsFor } from '../core/standings';
+import { outputNames } from './outputs';
 import { SEND_MODES, type SendMode } from '../input/fractions';
 import { PointerControls } from '../input/pointer';
 import { MAX_ZOOM } from '../render/camera';
@@ -300,6 +301,8 @@ function paintShare(): void {
     return;
   }
 
+  const names = outputNames(node, outputs.map((id) => match.state.nodes[id]!));
+
   for (const toId of outputs) {
     const target = match.state.nodes[toId];
     if (!target) continue;
@@ -307,7 +310,7 @@ function paintShare(): void {
     const row = document.createElement('li');
 
     const name = document.createElement('span');
-    name.textContent = `На ${bearingName(node, target)}`;
+    name.textContent = names.get(toId) ?? '';
 
     const state = document.createElement('em');
     state.textContent = `${formatPoints(target.points)} / ${target.capacity}`;
@@ -327,29 +330,6 @@ function paintShare(): void {
   }
 }
 
-/**
- * Which way an output lies from the hub, in words.
- *
- * Nodes have no names, and their ids mean nothing to a player. A direction is
- * the one label that can be matched against the board without being told.
- */
-const BEARINGS = [
-  'восток',
-  'юго-восток',
-  'юг',
-  'юго-запад',
-  'запад',
-  'северо-запад',
-  'север',
-  'северо-восток',
-] as const;
-
-function bearingName(from: GameNode, to: GameNode): string {
-  // Screen coordinates, so a positive y is south rather than north.
-  const angle = Math.atan2(to.y - from.y, to.x - from.x);
-  const eighth = Math.round((angle / (Math.PI * 2)) * 8 + 8) % 8;
-  return BEARINGS[eighth]!;
-}
 
 let settings: MatchSettings = {
   ...defaultSettings(),
