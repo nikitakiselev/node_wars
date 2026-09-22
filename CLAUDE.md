@@ -319,6 +319,14 @@ navigating, so nothing asks whether a new build exists: `registerWorker` calls
 `registration.update()` on every wake and reloads the page when a new worker
 takes charge, saving the match first.
 
+**`renderer.zoom` is the level the player has dialled in, not the scale from
+world units to pixels.** Zoom 1 means the whole board fitted, so the real
+scale is the fit times the zoom (`Camera.transform`). Anything that needs the
+screen size of a world thing measures it with `toScreen` — `ringFor` and
+`anchorFor` both do. Rebuilding the scale by hand looked right on a desktop,
+where the fit is near 1, and threw every button on the action ring twice as
+far from its node on a phone, where the board is squeezed to fit.
+
 The ring of actions around a selected node is laid out **evenly round the
 circle from the top**, and the board behind it is **dimmed rather than
 blurred**, with a soft hole around the node (`paintDim` in `main.ts`). Three

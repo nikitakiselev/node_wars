@@ -207,10 +207,18 @@ export class GameRenderer {
    * The ring of actions is laid out around the node rather than beside it, so
    * it needs the drawn radius and not just a point — and the drawn radius
    * moves with both the zoom and the node's own level.
+   *
+   * Measured by asking where the node's edge lands, not by multiplying its
+   * world radius by `camera.zoom`. Zoom is the level the player has dialled
+   * in, where 1 means the whole board fitted; the scale from world units to
+   * pixels is that times the fit. Rebuilding it here got the ring right on a
+   * desktop, where the fit is near 1, and pushed every button twice as far
+   * out as it belonged on a phone, where the board is squeezed.
    */
   ringFor(node: GameNode): { x: number; y: number; radius: number } {
     const at = this.toScreen(node.x, node.y);
-    return { x: at.x, y: at.y, radius: node.radius * this.camera.zoom };
+    const edge = this.toScreen(node.x + node.radius, node.y);
+    return { x: at.x, y: at.y, radius: edge.x - at.x };
   }
 
   /** Rebuilds every persistent display object for a freshly generated map. */
