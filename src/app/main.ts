@@ -183,16 +183,6 @@ const hud = {
  */
 let lastHole: Hole | null = null;
 
-/*
- * The way into everything else, in the one place each screen has room for.
- *
- * Top left on a desktop, where nothing else sits and the eye starts. On a
- * phone that corner belongs to the standings and the bottom row is already
- * the bar, so it moves down there next to the mode pills. One button either
- * way — two would be two things to keep in step for no gain.
- */
-if (touchPlayer) hud.bar.appendChild(hud.menu);
-
 hud.cutWire.addEventListener('click', () => {
   const wire = controls.hoveredWire;
   if (wire === null) return;

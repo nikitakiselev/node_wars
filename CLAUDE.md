@@ -249,6 +249,13 @@ Four decisions in there are load-bearing:
 - **Thresholds are measured in canvas pixels, never world units.** `CLICK_SLOP`
   on the mouse path is in world units, so at zoom 4 it is two screen pixels —
   fine for a cursor, useless for a fingertip.
+- **A wiring drag lays a chain, one wire per node it crosses** (`dragOver` in
+  `pointer.ts`). A rear feeds forward in chains, and lifting a finger between
+  every pair of nodes is four gestures to say one thing. It refuses to go
+  straight back to the node it just left, because a finger wanders and
+  wandering back would lay the wire the other way. **Attacks are deliberately
+  left out of it**: throwing a garrison is a decision about one node, and a
+  finger sliding along a front would give a dozen of them before it stopped.
 - **A second finger cancels the drag it interrupts.** A pinch that threw a
   garrison at a neighbour would be unforgivable, and a stray second finger is
   common.
@@ -281,12 +288,17 @@ above has not already said. There is one wording, not two — an earlier version
 built both and let the stylesheet choose, which was a second thing to keep in
 step for no gain.
 
-On a phone the bottom is **one row**: the mode pills and a ☰ button, and
-everything else — rules, a new match, saving, the seed — lives behind that
-button on the pause screen, which already existed. Four words plus a fifth do
-not fit across a phone, so the menu is a mark rather than a label. The bottom
-strip is the most expensive place on the screen, and none of those controls is
-wanted during a move.
+Everything that is not a move — rules, a new match, saving, the seed — lives
+behind **one ☰ button**, on the pause screen that already existed. Four words
+plus a fifth do not fit across a phone, so the menu is a mark rather than a
+label.
+
+**That button sits top left on every screen, and there is only one of it.** It
+was in the bottom bar on a phone for a while, next to the mode pills, which
+put it under the thumb that is in the middle of a move — and the bottom strip
+is the most expensive room a phone has. The top is drawn over the board
+anyway. One button rather than one per layout, for the same reason there is
+one wording of the standings: two would be two things to keep in step.
 
 Every control has a **pressed** state, and hover lives inside
 `@media (hover: hover)`. A finger has no hover: the only feedback a tap can

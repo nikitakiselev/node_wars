@@ -291,7 +291,10 @@ button,
  *
  * A row rather than a stack, because the menu button is the one thing on this
  * screen that is neither the board nor a reading of it, and a corner nothing
- * else wants is the cheapest place to put it.
+ * else wants is the cheapest place to put it. The same corner on a phone: the
+ * bottom strip is the most expensive room on that screen and the top is drawn
+ * over anyway, so the button is better off out of the way of a thumb that is
+ * in the middle of a move.
  */
 [data-hud-top] {
   display: flex;

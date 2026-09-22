@@ -44,6 +44,8 @@ export class PointerControls {
   private chosen: number | null = null;
   /** Set while a drag is laying a supply wire rather than throwing a squad. */
   private wiring = false;
+  /** Where a chain of wires just came from, so sliding back does not undo it. */
+  private came: number | null = null;
   /** The wire the cursor is resting on, by the pair of nodes it joins. */
   private hovered: WireRef | null = null;
   /** Where the view was last grabbed, in canvas pixels. */
@@ -188,7 +190,7 @@ export class PointerControls {
     const point = this.pointAt(event);
 
     if (this.from !== null) {
-      this.cursor = point;
+      this.dragOver(point);
       return;
     }
 
@@ -240,7 +242,7 @@ export class PointerControls {
           break;
         }
         case 'dragMove':
-          if (this.from !== null) this.cursor = this.surface.toWorld(gesture.x, gesture.y);
+          if (this.from !== null) this.dragOver(this.surface.toWorld(gesture.x, gesture.y));
           break;
         case 'dragEnd': {
           if (this.from === null) break;
@@ -300,16 +302,53 @@ export class PointerControls {
 
   /** Picks up a node: from here the drag is the same whatever opened it. */
   private beginDrag(node: GameNode, wiring: boolean): void {
-    const state = this.getState();
     this.wiring = wiring;
     this.hovered = null;
-    this.from = node.id;
+    this.came = null;
     this.cursor = { x: node.x, y: node.y };
+    this.aimFrom(node.id);
+  }
+
+  /** Points the drag at a node and works out what it could reach from there. */
+  private aimFrom(nodeId: number): void {
+    const state = this.getState();
+    this.from = nodeId;
     this.targets = new Set(
-      (state.adjacency[node.id] ?? []).filter((id) =>
-        wiring ? state.nodes[id]?.owner === this.player : state.nodes[id]?.owner !== this.player,
+      (state.adjacency[nodeId] ?? []).filter((id) =>
+        this.wiring
+          ? state.nodes[id]?.owner === this.player
+          : state.nodes[id]?.owner !== this.player,
       ),
     );
+  }
+
+  /**
+   * The drag passing over the board, and laying wire as it goes.
+   *
+   * A wire is the one order worth giving several of in a row: a rear feeds
+   * forward in chains, and lifting a finger between every pair of nodes is
+   * four gestures to say one thing. So while the drag is a wiring drag, every
+   * own node it crosses is joined to the one before and becomes the node the
+   * next stretch starts from.
+   *
+   * Attacks are deliberately left alone. Throwing a garrison is a decision
+   * about one node, and a finger sliding across a front line would give a
+   * dozen of them before it stopped.
+   */
+  private dragOver(point: { x: number; y: number }): void {
+    this.cursor = point;
+    if (!this.wiring || this.from === null) return;
+
+    const node = this.ownNodeAt(point);
+    // Not a node, the node we are standing on, or the one we just left: a
+    // finger wanders, and wandering back must not lay a wire the other way.
+    if (!node || node.id === this.from || node.id === this.came) return;
+    if (!this.targets.has(node.id)) return;
+    if (!setWire(this.getState(), this.player, this.from, node.id)) return;
+
+    this.came = this.from;
+    this.aimFrom(node.id);
+    this.onUiChange();
   }
 
   /**
@@ -346,6 +385,7 @@ export class PointerControls {
   private clear(): void {
     this.dragging = null;
     this.wiring = false;
+    this.came = null;
     this.from = null;
     this.cursor = null;
     this.pressedAt = null;
